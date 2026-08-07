@@ -1126,6 +1126,7 @@
         Internship Tracker
         <em>Your career launchpad</em>
       </div>
+      <div id="app-masthead" style="color:rgba(255,255,255,0.55); font-size:11px; letter-spacing:0.03em; margin-top:6px;"></div>
     </div>
     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
       <div class="cloud-badge" onclick="openCloudModal()" title="Cloud sync settings">
@@ -1763,6 +1764,12 @@ let currentView = 'table'; // 'table' | 'kanban' | 'sankey' | 'data'
 let binderTab = null; // { type: 'term'|'company', value: string } | null — active binder-rail highlight
 let dragSrcIdx = null;
 let editIdx = null; // set while the add-form is being used to edit an existing entry
+
+// Bump this on every deployed change — shown in the header so it's obvious
+// (e.g. after a GitHub Pages push) whether the live site is running the
+// latest version or a stale cached copy.
+const APP_VERSION = 'v1.21';
+const APP_OWNER = 'Naveen Koshy';
 
 const STORAGE_KEY = 'intern_tracker_v2';
 const STREAK_KEY = 'intern_streak';
@@ -4221,6 +4228,7 @@ function confetti() {
 load();
 loadGoal();
 document.getElementById('ghost-days').value = getGhostDays();
+document.getElementById('app-masthead').textContent = APP_OWNER + ' · ' + APP_VERSION;
 render();
 checkCaptureParams();
 // Re-check for newly-stale applications periodically for tabs left open a long time.

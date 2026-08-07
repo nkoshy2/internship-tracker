@@ -1,0 +1,4325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Keep this page out of search engines. It has no server-side access control —
+     this only stops it from turning up in search results; it is not a security
+     measure on its own. See README / cloud-sync notes for the real controls. -->
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Internship Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F7F5F0;
+    --surface: #FFFFFF;
+    --surface2: #F0EDE6;
+    --border: #E2DDD5;
+    --text: #1A1714;
+    --muted: #7A7269;
+    --accent: #2D5016;
+    --accent-light: #E8F0DF;
+    --accent-mid: #5A8A2E;
+    --amber: #8B5E00;
+    --amber-bg: #FFF4D6;
+    --red: #8B1A1A;
+    --red-bg: #FDECEA;
+    --purple: #4A2680;
+    --purple-bg: #F0EBFA;
+    --blue: #1A3D6B;
+    --blue-bg: #E8F0FA;
+    --fall: #A6521C;
+    --fall-bg: #FBE8D9;
+    --spring: #A6296B;
+    --spring-bg: #FCE7F1;
+    --summer: #9C7A00;
+    --summer-bg: #FFF6D9;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.04);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--accent);
+    padding: 2rem 2.5rem 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  header::before {
+    content: '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 220px; height: 220px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+  }
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: -60px; right: 80px;
+    width: 140px; height: 140px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+  }
+  .header-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+  .header-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2rem;
+    color: #fff;
+    line-height: 1.2;
+  }
+  .header-title em { font-style: italic; opacity: 0.75; font-size: 1.1rem; display: block; margin-top: 2px; }
+  .streak-badge {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 13px;
+    display: flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+  }
+  .streak-fire { font-size: 16px; }
+
+  /* CLOUD SYNC */
+  .cloud-badge {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    display: flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .cloud-badge:hover { background: rgba(255,255,255,0.25); }
+  .cloud-status.on { color: #b7f0a0; }
+  .cloud-status.off { color: rgba(255,255,255,0.6); }
+  .cloud-status.connecting { color: #ffe08a; }
+  .cloud-status.error { color: #ffb0b0; }
+
+  .cloud-modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 9500;
+    align-items: center; justify-content: center;
+  }
+  .cloud-modal-overlay.open { display: flex; }
+  .cloud-modal-box {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    width: 480px;
+    max-width: 92vw;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+  }
+  .cloud-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+  .cloud-modal-title { font-family: 'DM Serif Display', serif; font-size: 1.3rem; }
+  .cloud-modal-close { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--muted); }
+  .cloud-modal-sub { font-size: 13px; color: var(--muted); margin-bottom: 1rem; line-height: 1.5; }
+  .cloud-modal-sub a { color: var(--accent); }
+  .cloud-field-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin: 0.85rem 0 4px; }
+  .cloud-textarea, .cloud-input {
+    width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+    font-family: 'DM Sans', monospace; font-size: 13px; color: var(--text); outline: none; background: var(--surface2);
+  }
+  .cloud-textarea:focus, .cloud-input:focus { border-color: var(--accent-mid); }
+  .cloud-textarea { min-height: 90px; resize: vertical; }
+  .cloud-modal-footer { display: flex; justify-content: space-between; gap: 10px; margin-top: 1.25rem; }
+  .btn-cloud-disconnect { background: none; border: 1px solid var(--red); color: var(--red); padding: 8px 14px; border-radius: var(--radius-sm); font-size: 13px; cursor: pointer; }
+  .btn-cloud-save { background: var(--accent); border: none; color: #fff; padding: 8px 16px; border-radius: var(--radius-sm); font-size: 13px; cursor: pointer; font-weight: 500; }
+  .btn-cloud-save:hover { background: var(--accent-mid); }
+  .cloud-inline-msg { font-size: 12px; margin-top: 6px; min-height: 14px; }
+  .cloud-inline-msg.error { color: var(--red); }
+  .cloud-inline-msg.ok { color: var(--accent); }
+
+  /* MAIN */
+  main { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+  /* STATS GRID */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1.5rem; }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    box-shadow: var(--shadow);
+  }
+  .stat-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .stat-num { font-size: 26px; font-weight: 600; color: var(--text); }
+  .stat-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* PROGRESS */
+  .progress-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 1.5rem;
+  }
+  .progress-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .progress-top span { font-size: 13px; color: var(--muted); }
+  .progress-top strong { font-size: 14px; }
+  .goal-input { width: 52px; font-size: 14px; font-weight: 600; border: none; border-bottom: 2px solid var(--accent); background: transparent; color: var(--accent); text-align: center; outline: none; font-family: 'DM Sans', sans-serif; }
+  .bar-track { height: 10px; background: var(--surface2); border-radius: 999px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent-mid), var(--accent)); transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  .milestones { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .milestone { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--surface2); color: var(--muted); }
+  .milestone.done { background: var(--accent-light); color: var(--accent); }
+
+  /* HEATMAP CARD */
+  .heatmap-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 1.5rem;
+  }
+  .heatmap-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .heatmap-grid-wrap {
+    overflow-x: auto;
+  }
+  .heatmap-grid {
+    display: flex;
+    gap: 3px;
+    padding-bottom: 4px;
+  }
+  .heatmap-col {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .heatmap-cell {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    background: var(--surface2);
+    cursor: default;
+    transition: transform 0.1s;
+    position: relative;
+  }
+  .heatmap-cell:hover { transform: scale(1.3); z-index: 2; }
+  .heatmap-cell[data-count="0"] { background: var(--surface2); }
+  .heatmap-cell[data-count="1"] { background: #c6e6a0; }
+  .heatmap-cell[data-count="2"] { background: #8ccf58; }
+  .heatmap-cell[data-count="3"] { background: #5a9e26; }
+  .heatmap-cell[data-count-high] { background: #2D5016; }
+  .heatmap-legend {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .heatmap-legend-cell {
+    width: 11px; height: 11px;
+    border-radius: 2px;
+  }
+  .heatmap-tooltip {
+    position: fixed;
+    background: var(--text);
+    color: #fff;
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: var(--radius-sm);
+    pointer-events: none;
+    z-index: 9000;
+    white-space: nowrap;
+    display: none;
+  }
+
+  /* ACTIVITY ROW: calendar heatmap + trend chart side by side */
+  .activity-row { display: flex; align-items: flex-start; gap: 1.5rem; }
+  .heatmap-col-wrap { flex-shrink: 0; }
+  .heatmap-inner { display: flex; gap: 6px; }
+  .heatmap-daylabels {
+    display: flex; flex-direction: column; gap: 3px;
+    margin-top: 15px; /* align under month label row */
+  }
+  .heatmap-daylabel {
+    height: 14px; width: 26px;
+    font-size: 10px; color: var(--muted);
+    display: flex; align-items: center;
+  }
+  .heatmap-months {
+    display: flex; gap: 3px; margin-bottom: 3px;
+  }
+  .heatmap-monthlabel {
+    width: 14px; font-size: 10px; color: var(--muted);
+    white-space: nowrap; overflow: visible;
+  }
+  .activity-divider { width: 1px; align-self: stretch; background: var(--border); }
+  .trend-wrap { flex: 1; min-width: 0; }
+  .trend-title { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .trend-svg { width: 100%; height: 140px; display: block; cursor: crosshair; }
+  .trend-line { fill: none; stroke: var(--accent-mid); stroke-width: 2; }
+  .trend-area { fill: var(--accent-light); opacity: 0.8; }
+  .trend-gridline { stroke: var(--border); stroke-width: 1; }
+  .trend-gridlabel { font-size: 9px; fill: var(--muted); font-family: 'DM Sans', sans-serif; }
+  .trend-goal-line { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 3; opacity: 0.7; }
+  .trend-goal-label { font-size: 9px; fill: var(--muted); font-family: 'DM Sans', sans-serif; }
+  .trend-endpoint { fill: var(--accent); stroke: var(--surface); stroke-width: 1.5; }
+  .trend-hover-line { stroke: var(--accent-mid); stroke-width: 1; stroke-dasharray: 2 2; }
+  .trend-hover-dot { fill: var(--accent); stroke: var(--surface); stroke-width: 1.5; }
+  .trend-axis {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; color: var(--muted); margin-top: 4px;
+  }
+  .trend-axis .trend-total { font-weight: 600; color: var(--accent); font-size: 12px; }
+  .trend-empty { font-size: 13px; color: var(--muted); padding: 2rem 0; text-align: center; }
+  @media (max-width: 720px) {
+    .activity-row { flex-direction: column; }
+    .activity-divider { display: none; width: 100%; height: 1px; }
+    .trend-wrap { width: 100%; }
+  }
+
+  /* CONTROLS */
+  .controls { display: flex; flex-direction: column; gap: 10px; margin-bottom: 1.5rem; }
+  .controls-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .controls-filters .search-wrap { flex: 1; min-width: 200px; }
+  .controls-filters .ctrl-select { min-width: 132px; }
+  .controls-actions { justify-content: space-between; }
+  .controls-actions-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+
+  .search-wrap { position: relative; }
+  .search-wrap input { width: 100%; padding: 9px 12px 9px 36px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font-size: 14px; font-family: 'DM Sans', sans-serif; color: var(--text); outline: none; transition: border-color 0.2s; }
+  .search-wrap input:focus { border-color: var(--accent-mid); }
+  .search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 15px; pointer-events: none; }
+  .ctrl-select { padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font-size: 14px; font-family: 'DM Sans', sans-serif; color: var(--text); outline: none; cursor: pointer; }
+  .ctrl-btn { padding: 9px 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font-size: 14px; font-family: 'DM Sans', sans-serif; color: var(--text); cursor: pointer; white-space: nowrap; transition: background 0.15s; }
+  .ctrl-btn:hover { background: var(--surface2); }
+  .ctrl-btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .ctrl-btn.primary:hover { background: var(--accent-mid); border-color: var(--accent-mid); }
+  .ctrl-btn.icon-btn { padding: 9px 12px; }
+
+  /* Segmented view switcher */
+  .view-toggle-group { display: flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; flex-shrink: 0; }
+  .ctrl-btn.view-toggle { background: var(--surface2); border: none; border-radius: 0; font-size: 13px; padding: 9px 14px; }
+  .ctrl-btn.view-toggle:not(:last-child) { border-right: 1px solid var(--border); }
+  .ctrl-btn.view-toggle.active { background: var(--accent); color: #fff; }
+
+  @media (max-width: 860px) {
+    .controls-actions { justify-content: flex-start; }
+    .controls-actions-right { margin-left: 0; }
+  }
+
+  /* ADD FORM */
+  .add-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem 1.5rem;
+    box-shadow: var(--shadow);
+    margin-bottom: 1.5rem;
+    display: none;
+  }
+  .add-form.open { display: block; }
+  .form-title { font-weight: 600; font-size: 15px; margin-bottom: 1rem; }
+  .form-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .form-grid-term { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .form-grid-2 { display: grid; grid-template-columns: 3fr 1fr; gap: 10px; margin-bottom: 1rem; }
+  .form-field { display: flex; flex-direction: column; gap: 4px; }
+  .form-field label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .form-field input, .form-field select, .form-field textarea {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    background: var(--surface);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: var(--accent-mid); }
+  .form-field textarea { resize: vertical; min-height: 60px; }
+  .form-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+  /* COMPANY AUTOCOMPLETE */
+  .company-field-wrap { position: relative; }
+  .company-suggest {
+    display: none;
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 60;
+  }
+  .company-suggest.open { display: block; }
+  .company-suggest-item {
+    padding: 7px 10px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .company-suggest-item strong { color: var(--accent); }
+  .company-suggest-item.active, .company-suggest-item:hover { background: var(--accent-light); }
+
+  /* TABLE */
+  .table-view-layout { display: flex; align-items: flex-start; gap: 0; }
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    flex: 1;
+    min-width: 0;
+  }
+  .table-scroll { overflow-x: auto; }
+
+  /* BINDER TABS */
+  .binder-rail {
+    flex-shrink: 0;
+    width: 118px;
+    padding-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .binder-section-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    padding: 0 4px 4px 6px;
+  }
+  .binder-tabs { display: flex; flex-direction: column; gap: 3px; }
+  .binder-companies-wrap { max-height: 280px; overflow-y: auto; padding-bottom: 2px; }
+  .binder-tab {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-right: none;
+    border-radius: 6px 0 0 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-family: 'DM Sans', sans-serif;
+    color: var(--text);
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    transition: background 0.12s, transform 0.12s;
+  }
+  .binder-tab:hover { background: var(--surface); }
+  .binder-tab.active {
+    background: var(--surface);
+    border-color: var(--accent-mid);
+    font-weight: 600;
+    margin-right: -1px;
+    padding-right: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .binder-tab-fall.active { border-color: var(--fall); color: var(--fall); }
+  .binder-tab-spring.active { border-color: var(--spring); color: var(--spring); }
+  .binder-tab-summer.active { border-color: var(--summer); color: var(--summer); }
+  .binder-tab-company.active { border-color: var(--accent-mid); color: var(--accent); }
+  .binder-empty { font-size: 12px; color: var(--muted); padding: 4px 6px; }
+
+  /* Row differentiation driven by the binder rail */
+  #tbl tr { transition: opacity 0.15s; }
+  #tbl tr.row-dim { opacity: 0.32; }
+  #tbl tr.row-dim:hover { opacity: 0.6; }
+  #tbl tr.row-lit td { background: var(--surface2); }
+  #tbl tr.row-lit td:first-child { box-shadow: inset 4px 0 0 var(--accent-mid); }
+  #tbl tr.row-lit-fall td:first-child { box-shadow: inset 4px 0 0 var(--fall); }
+  #tbl tr.row-lit-spring td:first-child { box-shadow: inset 4px 0 0 var(--spring); }
+  #tbl tr.row-lit-summer td:first-child { box-shadow: inset 4px 0 0 var(--summer); }
+  table { width: 100%; border-collapse: collapse; }
+  thead { background: var(--surface2); }
+  thead th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  thead th:hover { color: var(--text); }
+  thead th.sorted { color: var(--accent); }
+  thead th.no-sort { cursor: default; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #FAFAF8; }
+  td { padding: 11px 14px; vertical-align: middle; }
+  .company-name { font-weight: 500; font-size: 15px; }
+  .company-multi-badge {
+    font-size: 10.5px; font-weight: 600; color: var(--muted); background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 10px; padding: 1px 6px; margin-left: 4px;
+    vertical-align: middle;
+  }
+  .company-role { font-size: 12px; color: var(--muted); margin-top: 1px; }
+
+  /* CHECKBOX */
+  .row-check { width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
+  .th-check-wrap { display: flex; align-items: center; }
+
+  /* BULK ACTION BAR */
+  .bulk-bar {
+    position: fixed;
+    bottom: 5rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--text);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    z-index: 800;
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s;
+    opacity: 0;
+    white-space: nowrap;
+  }
+  .bulk-bar.visible { transform: translateX(-50%) translateY(0); opacity: 1; }
+  .bulk-bar select {
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    outline: none;
+    cursor: pointer;
+  }
+  .bulk-bar button {
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: var(--accent-mid);
+    color: #fff;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .bulk-bar button:hover { background: var(--accent); }
+  .bulk-bar-divider { width: 1px; align-self: stretch; background: rgba(255,255,255,0.2); }
+  .bulk-deselect {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.6);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 0 4px;
+  }
+  .bulk-deselect:hover { color: #fff; }
+
+  /* KANBAN */
+  .kanban-view {
+    display: none;
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 1rem;
+  }
+  .kanban-view.active { display: flex; }
+  .kanban-col {
+    flex: 0 0 220px;
+    background: var(--surface2);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+  }
+  .kanban-col-header {
+    padding: 10px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+  }
+  .kanban-col-header .kanban-count {
+    background: var(--surface);
+    border-radius: 999px;
+    padding: 1px 7px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .ghost-setting {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12.5px; color: var(--muted); white-space: nowrap;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 0 10px; height: 38px;
+  }
+  .ghost-setting input {
+    width: 42px; border: 1px solid var(--border); border-radius: 4px;
+    padding: 3px 4px; font-size: 12.5px; text-align: center;
+    font-family: 'DM Sans', sans-serif; color: var(--text); background: var(--surface);
+  }
+
+  .sankey-view { display: none; }
+  .sankey-view.active { display: block; }
+  .sankey-wrap {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 1.25rem; overflow-x: auto;
+  }
+  .sankey-empty { text-align: center; padding: 3rem 1rem; color: var(--muted); }
+  .sankey-node-label { font-size: 12px; fill: var(--text); font-family: 'DM Sans', sans-serif; }
+
+  /* DATA VIEW — full raw-history editor, one card per application */
+  .data-view { display: none; }
+  .data-view.active { display: block; }
+  .data-intro {
+    font-size: 13px; color: var(--muted); line-height: 1.5;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 0.9rem 1.1rem; margin-bottom: 1rem;
+  }
+  .data-search-wrap {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 8px 12px; margin-bottom: 1rem; max-width: 320px;
+  }
+  .data-search-wrap input {
+    border: none; outline: none; background: none; font-size: 13px;
+    font-family: 'DM Sans', sans-serif; color: var(--text); flex: 1;
+  }
+  .data-entries-wrap { display: flex; flex-direction: column; gap: 12px; }
+  .data-entry-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 1rem 1.25rem;
+  }
+  .data-entry-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 12px; margin-bottom: 10px; flex-wrap: wrap;
+  }
+  .data-entry-company { font-family: 'DM Serif Display', serif; font-size: 1.05rem; }
+  .data-entry-role { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .data-entry-status { color: var(--accent); font-weight: 500; }
+  .data-entry-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .data-hist-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .data-hist-table th {
+    text-align: left; color: var(--muted); font-weight: 500; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.04em; padding: 3px 8px 5px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .data-hist-table td { padding: 5px 8px 5px 0; vertical-align: middle; }
+  .data-hist-select {
+    font-family: 'DM Sans', sans-serif; font-size: 12.5px; padding: 4px 6px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface);
+    color: var(--text); outline: none;
+  }
+  .data-hist-select:focus { border-color: var(--accent-mid); }
+  .data-hist-add {
+    display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 10px;
+    border-top: 1px dashed var(--border); flex-wrap: wrap;
+  }
+  .sankey-node-count { font-size: 11px; fill: var(--muted); font-family: 'DM Sans', sans-serif; }
+  .sankey-link { transition: opacity 0.15s; cursor: default; }
+  .sankey-link:hover { opacity: 0.85 !important; }
+  .sankey-link-label { font-size: 10.5px; fill: var(--surface); font-weight: 600; pointer-events: none; }
+
+  .kanban-col[data-status="applied"] .kanban-col-header { color: var(--blue); }
+  .kanban-col[data-status="interview"] .kanban-col-header { color: var(--amber); }
+  .kanban-col[data-status="ghosted"] .kanban-col-header { color: var(--purple); }
+  .kanban-col[data-status="offer"] .kanban-col-header { color: var(--accent); }
+  .kanban-col[data-status="rejected"] .kanban-col-header { color: var(--red); }
+  .kanban-cards {
+    flex: 1;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 60px;
+  }
+  .kanban-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    cursor: grab;
+    box-shadow: var(--shadow);
+    transition: box-shadow 0.15s, transform 0.15s;
+    user-select: none;
+    position: relative;
+  }
+  .kanban-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+  .kanban-card.dragging { opacity: 0.4; cursor: grabbing; }
+  .kanban-card-edit-btn {
+    position: absolute; top: 6px; right: 6px;
+    width: 20px; height: 20px; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; border: none; color: var(--muted);
+    font-size: 12px; cursor: pointer; opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+  }
+  .kanban-card:hover .kanban-card-edit-btn { opacity: 1; }
+  .kanban-card-edit-btn:hover { background: var(--surface2); color: var(--text); }
+  .kanban-card-company { font-weight: 500; font-size: 13px; padding-right: 20px; }
+  .kanban-card-role { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .kanban-card-meta { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
+  .kanban-col.drag-over { background: var(--accent-light); border-color: var(--accent-mid); }
+
+  /* BADGES */
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; padding: 3px 9px; border-radius: 999px;
+    white-space: nowrap; font-weight: 500;
+  }
+  .badge-plan { background: var(--surface2); color: var(--muted); }
+  .badge-applied { background: var(--blue-bg); color: var(--blue); }
+  .badge-interview { background: var(--amber-bg); color: var(--amber); }
+  .badge-ghosted { background: var(--purple-bg); color: var(--purple); }
+  .badge-offer { background: var(--accent-light); color: var(--accent); }
+  .badge-rejected { background: var(--red-bg); color: var(--red); }
+
+  .milestone-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; padding: 2px 7px 2px 8px; border-radius: 999px;
+    white-space: nowrap; font-weight: 500; cursor: pointer; border: none;
+    margin-right: 4px; margin-top: 4px;
+  }
+  .milestone-chip:hover { filter: brightness(1.15); }
+  .milestone-chip.mi-interview { background: var(--amber-bg); color: var(--amber); }
+  .milestone-chip.mi-offer { background: var(--accent-light); color: var(--accent); }
+  .milestone-chip .mi-x { opacity: 0.6; font-weight: 700; }
+  .milestone-chip .mi-x:hover { opacity: 1; }
+  .milestone-row { display: flex; flex-wrap: wrap; }
+
+  .pri-badge { font-size: 11px; padding: 2px 7px; border-radius: 4px; font-weight: 500; }
+  .pri-high { background: var(--red-bg); color: var(--red); }
+  .pri-med { background: var(--amber-bg); color: var(--amber); }
+  .pri-low { background: var(--surface2); color: var(--muted); }
+
+  .term-badge { font-size: 11px; padding: 2px 7px; border-radius: 4px; font-weight: 500; white-space: nowrap; }
+  .term-fall { background: var(--fall-bg); color: var(--fall); }
+  .term-spring { background: var(--spring-bg); color: var(--spring); }
+  .term-summer { background: var(--summer-bg); color: var(--summer); }
+
+  .deadline-text { font-size: 13px; }
+  .deadline-urgent { color: var(--red); font-weight: 600; }
+  .deadline-soon { color: var(--amber); font-weight: 500; }
+  .deadline-ok { color: var(--muted); }
+  .deadline-none { color: var(--muted); font-style: italic; font-size: 12px; }
+
+  .status-sel {
+    font-size: 12px; padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer; outline: none;
+  }
+
+  .icon-btn {
+    background: none; border: none; cursor: pointer;
+    color: var(--muted); font-size: 15px; padding: 4px 6px;
+    border-radius: 4px; transition: all 0.15s;
+  }
+  .icon-btn:hover { background: var(--red-bg); color: var(--red); }
+  .icon-btn.note-btn:hover { background: var(--accent-light); color: var(--accent); }
+
+  .notes-preview { font-size: 12px; color: var(--muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* NOTES PANEL */
+  .notes-row td { padding: 0 14px 10px; }
+  .notes-box { background: var(--accent-light); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 13px; color: var(--accent); border-left: 3px solid var(--accent-mid); }
+
+  /* EMPTY */
+  .empty-state { text-align: center; padding: 4rem 2rem; color: var(--muted); }
+  .empty-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+  .empty-title { font-family: 'DM Serif Display', serif; font-size: 1.3rem; color: var(--text); margin-bottom: 0.5rem; }
+  .empty-sub { font-size: 14px; }
+
+  /* CONFETTI */
+  .confetti-piece {
+    position: fixed;
+    width: 8px; height: 8px;
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 9999;
+    animation: confetti-fall 2.5s ease-in forwards;
+  }
+  @keyframes confetti-fall {
+    0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+  }
+
+  /* TOAST */
+  .toast {
+    position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%) translateY(100px);
+    background: var(--accent); color: #fff;
+    padding: 12px 20px; border-radius: var(--radius);
+    font-size: 14px; font-weight: 500;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    z-index: 1000;
+    white-space: nowrap;
+    max-width: 90vw;
+    text-align: center;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+  /* FAB */
+  .fab {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 26px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(45,80,22,0.4);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 700;
+    transition: transform 0.2s, box-shadow 0.2s;
+    line-height: 1;
+  }
+  .fab:hover { transform: scale(1.1); box-shadow: 0 6px 24px rgba(45,80,22,0.5); }
+  .fab:active { transform: scale(0.95); }
+
+  /* QUICK-ADD MODAL */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(26,23,20,0.5);
+    z-index: 2000;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal-box {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    width: 380px; max-width: 90vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    transform: translateY(20px);
+    transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .modal-overlay.open .modal-box { transform: translateY(0); }
+  .modal-title { font-family: 'DM Serif Display', serif; font-size: 1.3rem; margin-bottom: 1rem; }
+  .modal-title em { font-style: italic; opacity: 0.6; font-size: 0.9rem; display: block; }
+  .modal-field { margin-bottom: 12px; }
+  .modal-field label { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+  .modal-field input, .modal-field select { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 15px; font-family: 'DM Sans', sans-serif; color: var(--text); outline: none; transition: border-color 0.2s; background: var(--surface); cursor: pointer; }
+  .modal-field input:focus, .modal-field select:focus { border-color: var(--accent-mid); }
+  .modal-actions { display: flex; gap: 8px; margin-top: 1rem; justify-content: flex-end; }
+
+  /* BULK PASTE */
+  .modal-box.wide { width: 640px; max-width: 94vw; }
+  .bulk-textarea {
+    width: 100%; min-height: 130px; padding: 10px 12px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    font-family: 'DM Sans', sans-serif; font-size: 14px; line-height: 1.45;
+    color: var(--text); resize: vertical; outline: none;
+  }
+  .bulk-textarea:focus { border-color: var(--accent-mid); }
+  .bulk-defaults-row { display: flex; gap: 10px; margin-top: 12px; }
+  .bulk-defaults-row .modal-field { flex: 1; margin-bottom: 0; }
+  .bulk-preview-wrap {
+    max-height: 300px; overflow-y: auto; margin-top: 14px;
+    border-top: 1px solid var(--border); padding-top: 10px;
+  }
+  .bulk-empty-hint { color: var(--muted); font-size: 13px; padding: 14px 2px; }
+  .bulk-preview-row {
+    display: flex; gap: 6px; align-items: center;
+    padding: 6px 2px; border-bottom: 1px dashed var(--border);
+  }
+  .bulk-preview-row:last-child { border-bottom: none; }
+  .bulk-preview-row input, .bulk-preview-row select {
+    padding: 6px 8px; font-size: 13px; border: 1px solid var(--border);
+    border-radius: 6px; font-family: 'DM Sans', sans-serif; color: var(--text);
+    background: var(--surface); outline: none;
+  }
+  .bulk-preview-row input:focus, .bulk-preview-row select:focus { border-color: var(--accent-mid); }
+  .bulk-company-input { width: 128px; flex-shrink: 0; font-weight: 600; }
+  .bulk-role-input { flex: 1; min-width: 0; }
+  .bulk-term-select { width: 96px; flex-shrink: 0; cursor: pointer; }
+  .bulk-year-input { width: 62px; flex-shrink: 0; }
+  .bulk-remove-btn {
+    background: none; border: none; color: var(--red); cursor: pointer;
+    font-size: 15px; flex-shrink: 0; padding: 4px 6px; line-height: 1;
+  }
+  .bulk-remove-btn:hover { opacity: 0.7; }
+  .bulk-count-label { font-size: 13px; color: var(--muted); margin-top: 10px; }
+
+  /* SHORTCUTS OVERLAY */
+  .shortcuts-overlay {
+    position: fixed; inset: 0;
+    background: rgba(26,23,20,0.6);
+    z-index: 3000;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .shortcuts-overlay.open { opacity: 1; pointer-events: all; }
+  .shortcuts-box {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 1.75rem 2rem;
+    width: 420px; max-width: 92vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    transform: scale(0.95);
+    transition: transform 0.2s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .shortcuts-overlay.open .shortcuts-box { transform: scale(1); }
+  .shortcuts-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.4rem;
+    margin-bottom: 1.25rem;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .shortcuts-close { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 20px; }
+  .shortcut-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .shortcut-row:last-child { border-bottom: none; }
+  .shortcut-key {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-bottom: 3px solid var(--border);
+    border-radius: 5px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    font-family: monospace;
+  }
+  .shortcut-desc { color: var(--muted); font-size: 13px; }
+
+  /* DUPLICATE WARNING */
+  .dup-warning {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border: 1px solid var(--amber);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 13px;
+    margin-bottom: 1rem;
+    display: none;
+  }
+  .dup-warning.show { display: block; }
+  .dup-warning-actions { display: flex; gap: 8px; margin-top: 8px; }
+  .dup-warning-actions .ctrl-btn { padding: 6px 12px; font-size: 13px; }
+
+  /* MOMENTUM INDICATOR */
+  .stat-momentum {
+    font-size: 11px;
+    margin-top: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-weight: 600;
+  }
+  .stat-momentum.up { background: var(--accent-light); color: var(--accent); }
+  .stat-momentum.down { background: var(--red-bg); color: var(--red); }
+  .stat-momentum.flat { background: var(--surface2); color: var(--muted); }
+
+  /* KANBAN COPY BUTTON */
+  .kanban-card-dup-btn {
+    position: absolute; top: 6px; right: 28px;
+    width: 20px; height: 20px; border-radius: 5px;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent; border: none; color: var(--muted);
+    font-size: 12px; cursor: pointer; opacity: 0;
+    transition: opacity 0.15s, background 0.15s;
+  }
+  .kanban-card:hover .kanban-card-dup-btn { opacity: 1; }
+  .kanban-card-dup-btn:hover { background: var(--surface2); color: var(--accent); }
+
+  /* BULK DEADLINE */
+  .bulk-bar .bulk-deadline-btn { white-space: nowrap; }
+
+  /* TAG CHIPS (subsystem tagging) */
+  .tag-chip {
+    display: inline-block; font-size: 10.5px; font-weight: 600;
+    padding: 2px 7px; border-radius: 999px; margin: 0 4px 2px 0;
+    background: var(--blue-bg); color: var(--blue); white-space: nowrap;
+  }
+  .tag-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .tag-picker label {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 12px; font-weight: 500; color: var(--muted);
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 999px; padding: 4px 9px; cursor: pointer;
+  }
+  .tag-picker input[type="checkbox"] { accent-color: var(--accent); }
+  .tag-picker label.checked { color: var(--accent); border-color: var(--accent-mid); background: var(--accent-light); }
+
+  /* REFERRAL / CONTACT */
+  .referral-badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 11px; color: var(--purple); background: var(--purple-bg);
+    border-radius: 999px; padding: 2px 8px; cursor: default;
+  }
+  .form-subhead { font-size: 12px; font-weight: 600; color: var(--muted); margin: 2px 0 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+  /* INTERVIEW STAGE PILL */
+  .stage-sel {
+    margin-top: 4px; font-size: 11px; padding: 3px 6px;
+    border-radius: 999px; border: 1px solid var(--amber); background: var(--amber-bg);
+    color: var(--amber); font-weight: 600; cursor: pointer;
+  }
+  .funnel-wrap { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+  .funnel-step { text-align: center; font-size: 11px; color: var(--muted); }
+  .funnel-step b { display: block; font-size: 17px; color: var(--text); font-family: 'DM Serif Display', serif; }
+  .funnel-arrow { color: var(--border); font-size: 16px; }
+
+  /* RESPONSE TIME CARD */
+  .response-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 1rem 1.25rem; margin-bottom: 1rem;
+    display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center;
+  }
+  .response-metric { font-size: 12px; color: var(--muted); }
+  .response-metric b { display: block; font-size: 20px; color: var(--accent); font-family: 'DM Serif Display', serif; font-weight: normal; }
+
+  /* EDITABLE DATES in the response-detail table ("Show detail") */
+  .hist-date-cell {
+    display: inline-flex; align-items: center; gap: 5px;
+    cursor: pointer; border-radius: 4px; padding: 2px 4px; margin: -2px -4px;
+    transition: background 0.12s;
+  }
+  .hist-date-cell:hover { background: var(--surface2); }
+  .hist-date-cell:hover .hist-edit-icon { opacity: 1; }
+  .hist-edit-icon { opacity: 0; font-size: 10px; color: var(--muted); transition: opacity 0.12s; }
+  .hist-date-cell.empty { color: var(--muted); font-style: italic; }
+  .hist-date-input {
+    font-family: 'DM Sans', sans-serif; font-size: 12px; padding: 2px 4px;
+    border: 1px solid var(--accent-mid); border-radius: 4px; outline: none; background: var(--surface);
+  }
+  .hist-clear-btn {
+    background: none; border: none; color: var(--muted); font-size: 11px; cursor: pointer;
+    padding: 0 2px; line-height: 1; opacity: 0.6;
+  }
+  .hist-clear-btn:hover { color: var(--red); opacity: 1; }
+
+  /* UNDO TOAST */
+  .toast { display: flex; align-items: center; gap: 12px; }
+  .toast-undo-btn {
+    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.35);
+    color: #fff; border-radius: 6px; padding: 3px 10px; font-size: 12px;
+    cursor: pointer; white-space: nowrap; font-weight: 600;
+  }
+  .toast-undo-btn:hover { background: rgba(255,255,255,0.28); }
+
+  /* BACKUP / RESTORE + SECURITY NOTE */
+  .cloud-security-note {
+    background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber);
+    border-radius: var(--radius-sm); padding: 10px 12px; font-size: 12.5px; line-height: 1.5;
+    margin: 4px 0 10px;
+  }
+  .cloud-security-note strong { display: block; margin-bottom: 3px; }
+  .cloud-rules-box {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 8px 10px; font-family: monospace; font-size: 11px; white-space: pre-wrap;
+    max-height: 120px; overflow-y: auto; margin: 6px 0 10px;
+  }
+  .ctrl-btn.small-copy { padding: 4px 9px; font-size: 11.5px; }
+
+  /* KEYBOARD-OPERABLE KANBAN */
+  .kanban-card[tabindex] { outline: none; }
+  .kanban-card[tabindex]:focus-visible {
+    box-shadow: 0 0 0 3px var(--accent-mid);
+  }
+  .kanban-card-move-sel {
+    margin-top: 6px; width: 100%; font-size: 11px; padding: 3px 5px;
+    border-radius: 6px; border: 1px solid var(--border); background: var(--surface);
+    color: var(--text); cursor: pointer;
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 700px) {
+    header { padding: 1.5rem; }
+    main { padding: 1rem; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .form-grid { grid-template-columns: 1fr 1fr; }
+    .form-grid-2 { grid-template-columns: 1fr; }
+    table { font-size: 13px; }
+    .header-title { font-size: 1.5rem; }
+  }
+
+  @media (max-width: 600px) {
+    .header-top { flex-wrap: wrap; }
+    .stats { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-card { padding: 0.75rem; }
+    .table-view-layout { flex-direction: column; }
+    .binder-rail {
+      width: 100%; flex-shrink: 1; padding-top: 6px;
+      max-height: 140px; overflow-y: auto;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .binder-tabs { flex-direction: row; flex-wrap: wrap; }
+    .binder-companies-wrap { max-height: none; }
+    .controls-row { flex-wrap: wrap; }
+    .controls-actions-right { flex-wrap: wrap; gap: 6px; }
+    .view-toggle-group { width: 100%; }
+    .view-toggle-group .view-toggle { flex: 1; }
+    .form-grid { grid-template-columns: 1fr; }
+    .form-grid-term { grid-template-columns: 1fr; }
+    .kanban-col { flex: 0 0 78vw; }
+    .response-card { flex-direction: column; align-items: flex-start; gap: 0.6rem; }
+    .table-scroll table { min-width: 640px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-top">
+    <div>
+      <div class="header-title">
+        Internship Tracker
+        <em>Your career launchpad</em>
+      </div>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+      <div class="cloud-badge" onclick="openCloudModal()" title="Cloud sync settings">
+        <span>☁️</span>
+        <span id="cloud-status" class="cloud-status off">Not connected</span>
+      </div>
+      <div class="cloud-badge" onclick="exportBackup()" title="Download a full JSON backup (entries, history, tags, goal, streak)">
+        <span>⬇</span><span>Backup</span>
+      </div>
+      <div class="cloud-badge" onclick="document.getElementById('restore-file-input').click()" title="Restore from a JSON backup file">
+        <span>⬆</span><span>Restore</span>
+      </div>
+      <input type="file" id="restore-file-input" accept="application/json,.json" style="display:none" onchange="importBackup(event)" />
+      <div class="streak-badge">
+        <span class="streak-fire">🔥</span>
+        <span id="streak-text">0 day streak</span>
+      </div>
+    </div>
+  </div>
+
+</header>
+
+<main>
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stat-card">
+      <div class="stat-label">Total tracked</div>
+      <div class="stat-num" id="stat-total">0</div>
+      <div class="stat-sub" id="stat-companies">internships</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Applied</div>
+      <div class="stat-num" id="stat-applied">0</div>
+      <div class="stat-sub" id="stat-rate">0% conversion</div>
+      <div class="stat-momentum flat" id="stat-momentum">— No activity yet</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Interviews</div>
+      <div class="stat-num" id="stat-interviews">0</div>
+      <div class="stat-sub">secured</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Offers</div>
+      <div class="stat-num" id="stat-offers">0</div>
+      <div class="stat-sub">🎉 congrats!</div>
+    </div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div class="progress-card">
+    <div class="progress-top">
+      <strong id="prog-phrase">Let's get started</strong>
+      <span>Goal: <input class="goal-input" id="goal-input" type="number" min="1" max="200" value="20" /> applications</span>
+    </div>
+    <div class="bar-track"><div class="bar-fill" id="bar-fill" style="width:0%"></div></div>
+    <div class="milestones" id="milestones"></div>
+  </div>
+
+  <!-- HEATMAP -->
+  <div class="heatmap-card">
+    <div class="heatmap-title">📅 Application Activity — Last 16 Weeks</div>
+    <div class="activity-row">
+      <div class="heatmap-col-wrap">
+        <div class="heatmap-grid-wrap">
+          <div class="heatmap-inner">
+            <div class="heatmap-daylabels" id="heatmap-daylabels"></div>
+            <div>
+              <div class="heatmap-months" id="heatmap-months"></div>
+              <div class="heatmap-grid" id="heatmap-grid"></div>
+            </div>
+          </div>
+        </div>
+        <div class="heatmap-legend">
+          <span>Less</span>
+          <div class="heatmap-legend-cell" style="background:var(--surface2); border:1px solid var(--border)"></div>
+          <div class="heatmap-legend-cell" style="background:#c6e6a0"></div>
+          <div class="heatmap-legend-cell" style="background:#8ccf58"></div>
+          <div class="heatmap-legend-cell" style="background:#5a9e26"></div>
+          <div class="heatmap-legend-cell" style="background:#2D5016"></div>
+          <span>More</span>
+        </div>
+      </div>
+      <div class="activity-divider"></div>
+      <div class="trend-wrap">
+        <div class="trend-title">Total applications over time</div>
+        <div id="trend-chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIPELINE INSIGHTS: response times + interview funnel -->
+  <div class="response-card" id="insights-card" style="display:none; flex-direction:column; align-items:stretch">
+    <div style="display:flex; flex-wrap:wrap; gap:1.5rem; align-items:center; width:100%">
+      <div class="response-metric" title="Median days from Applied to any status change">
+        <b id="resp-to-response">—</b>Median: applied → response
+      </div>
+      <div class="response-metric" title="Median days from Applied to Interview">
+        <b id="resp-to-interview">—</b>Median: applied → interview
+      </div>
+      <div class="response-metric" title="Median days from Interview to a resolved outcome (offer/rejected/ghosted)">
+        <b id="resp-to-decision">—</b>Median: interview → decision
+      </div>
+      <div style="flex:1; min-width:220px">
+        <div class="funnel-wrap" id="funnel-wrap"></div>
+      </div>
+      <button class="ctrl-btn small-copy" type="button" onclick="setView('data')" title="See and correct the raw dates these medians are calculated from">🗂 Edit data</button>
+    </div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls">
+    <!-- Row 1: search + filters -->
+    <div class="controls-row controls-filters">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search-input" placeholder="Search companies or roles… (F)" oninput="render()">
+      </div>
+      <select class="ctrl-select" id="filter-status" onchange="render()">
+        <option value="">All statuses</option>
+        <option value="plan">Planning</option>
+        <option value="applied">Applied</option>
+        <option value="interview">Interview</option>
+        <option value="ghosted">Ghosted</option>
+        <option value="offer">Offer</option>
+        <option value="rejected">Rejected</option>
+      </select>
+      <select class="ctrl-select" id="filter-priority" onchange="render()">
+        <option value="">All priorities</option>
+        <option value="high">High priority</option>
+        <option value="med">Medium priority</option>
+        <option value="low">Low priority</option>
+      </select>
+      <select class="ctrl-select" id="filter-term" onchange="render()">
+        <option value="">All terms</option>
+        <option value="fall">🍂 Fall</option>
+        <option value="spring">🌸 Spring</option>
+        <option value="summer">☀️ Summer</option>
+      </select>
+      <select class="ctrl-select" id="filter-company" onchange="render()">
+        <option value="">All companies</option>
+      </select>
+      <select class="ctrl-select" id="filter-tag" onchange="render()">
+        <option value="">All tags</option>
+        <option value="TPS/Hypersonics">TPS/Hypersonics</option>
+        <option value="Propulsion">Propulsion</option>
+        <option value="Structures">Structures</option>
+        <option value="Avionics">Avionics</option>
+        <option value="GNC">GNC</option>
+        <option value="Test">Test</option>
+      </select>
+    </div>
+
+    <!-- Row 2: view switcher + settings + actions -->
+    <div class="controls-row controls-actions">
+      <div class="view-toggle-group">
+        <button class="ctrl-btn view-toggle active" id="btn-table" onclick="setView('table')" title="Table view (K)">≡ Table</button>
+        <button class="ctrl-btn view-toggle" id="btn-kanban" onclick="setView('kanban')" title="Board view (K)">⊞ Board</button>
+        <button class="ctrl-btn view-toggle" id="btn-sankey" onclick="setView('sankey')" title="Flow view">🔀 Flow</button>
+        <button class="ctrl-btn view-toggle" id="btn-data" onclick="setView('data')" title="Edit the raw data behind every stat">🗂 Data</button>
+      </div>
+      <div class="controls-actions-right">
+        <span class="ghost-setting" title="If an application sits in Applied this long with no update, it's auto-moved to Ghosted">
+          👻 Ghost after <input type="number" id="ghost-days" min="7" max="365" value="30" onchange="onGhostDaysChange()">d
+        </span>
+        <button class="ctrl-btn" onclick="exportCSV()">⬇ Export CSV</button>
+        <button class="ctrl-btn" onclick="openCaptureModal()" title="Get a bookmarklet to log a posting from any job page in one click">🔖 Quick Capture</button>
+        <button class="ctrl-btn" onclick="openBulkPaste()" title="Paste a list of companies/roles (B)">📋 Bulk Paste</button>
+        <button class="ctrl-btn icon-btn" onclick="showShortcuts()" title="Keyboard shortcuts (?)">⌨</button>
+        <button class="ctrl-btn primary" onclick="toggleForm()" title="Add internship (N)">+ Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD FORM -->
+  <div class="add-form" id="add-form">
+    <div class="form-title" id="form-title">Add new internship</div>
+    <div class="dup-warning" id="dup-warning">
+      <span id="dup-warning-text"></span>
+      <div class="dup-warning-actions">
+        <button class="ctrl-btn" onclick="dismissDupWarning()">Cancel</button>
+        <button class="ctrl-btn primary" onclick="addEntry(true)">Add anyway</button>
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-field company-field-wrap">
+        <label>Company *</label>
+        <input id="f-company" placeholder="e.g. Google" autocomplete="off"
+               oninput="onCompanyInput()" onkeydown="onCompanyKeydown(event)"
+               onfocus="onCompanyInput()" onblur="onCompanyBlur()" />
+        <div class="company-suggest" id="company-suggest"></div>
+      </div>
+      <div class="form-field">
+        <label>Role</label>
+        <input id="f-role" placeholder="e.g. SWE Intern" />
+      </div>
+      <div class="form-field">
+        <label>Status</label>
+        <select id="f-status" onchange="onFormStatusChange()">
+          <option value="plan">Planning</option>
+          <option value="applied">Applied</option>
+          <option value="interview">Interview</option>
+          <option value="ghosted">Ghosted</option>
+          <option value="offer">Offer</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>Priority</label>
+        <select id="f-priority">
+          <option value="high">High</option>
+          <option value="med" selected>Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-grid-term">
+      <div class="form-field">
+        <label>Term</label>
+        <select id="f-term">
+          <option value="">No term</option>
+          <option value="fall">🍂 Fall</option>
+          <option value="spring">🌸 Spring</option>
+          <option value="summer">☀️ Summer</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>Year</label>
+        <input id="f-term-year" type="number" placeholder="e.g. 2027" min="2024" max="2035" />
+      </div>
+    </div>
+    <div class="form-grid-2">
+      <div class="form-field">
+        <label>Application link</label>
+        <input id="f-link" placeholder="https://…" type="url" />
+      </div>
+      <div class="form-field">
+        <label>Deadline (optional)</label>
+        <input id="f-deadline" type="date" />
+      </div>
+    </div>
+    <div class="form-field" style="margin-bottom:1rem">
+      <label>Notes (prep details, tips…)</label>
+      <textarea id="f-notes" placeholder="e.g. Apply before semester starts, prep OOP + thermodynamics…"></textarea>
+    </div>
+
+    <div class="form-subhead">Subsystem / role tags</div>
+    <div class="tag-picker" id="f-tag-picker"></div>
+
+    <div class="form-subhead" style="margin-top:14px">Recruiter / referral contact</div>
+    <div class="form-grid-2">
+      <div class="form-field">
+        <label>Name</label>
+        <input id="f-ref-name" placeholder="e.g. Jane Smith" />
+      </div>
+      <div class="form-field">
+        <label>Email</label>
+        <input id="f-ref-email" type="email" placeholder="jane@company.com" />
+      </div>
+    </div>
+    <div class="form-field" style="margin-bottom:1rem">
+      <label>LinkedIn</label>
+      <input id="f-ref-linkedin" placeholder="linkedin.com/in/…" />
+    </div>
+
+    <div class="form-grid-2">
+      <div class="form-field" id="f-interview-stage-wrap" style="display:none">
+        <label>Interview round reached</label>
+        <select id="f-interview-stage">
+          <option value="">Not started</option>
+          <option value="oa">OA</option>
+          <option value="phone">Phone Screen</option>
+          <option value="onsite">Onsite/Final</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>Resume / story-bank version used</label>
+        <input id="f-resume-version" placeholder="e.g. v3-aerospace-bullets" />
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button class="ctrl-btn" onclick="closeAddForm()">Cancel</button>
+      <button class="ctrl-btn primary" id="form-save-btn" onclick="addEntry()">Save internship</button>
+    </div>
+  </div>
+
+  <!-- KANBAN VIEW -->
+  <div class="kanban-view" id="kanban-view">
+    <div class="kanban-col" data-status="plan" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'plan')">
+      <div class="kanban-col-header">Planning <span class="kanban-count" id="k-count-plan">0</span></div>
+      <div class="kanban-cards" id="k-plan"></div>
+    </div>
+    <div class="kanban-col" data-status="applied" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'applied')">
+      <div class="kanban-col-header">Applied <span class="kanban-count" id="k-count-applied">0</span></div>
+      <div class="kanban-cards" id="k-applied"></div>
+    </div>
+    <div class="kanban-col" data-status="interview" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'interview')">
+      <div class="kanban-col-header">Interview <span class="kanban-count" id="k-count-interview">0</span></div>
+      <div class="kanban-cards" id="k-interview"></div>
+    </div>
+    <div class="kanban-col" data-status="ghosted" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'ghosted')">
+      <div class="kanban-col-header">👻 Ghosted <span class="kanban-count" id="k-count-ghosted">0</span></div>
+      <div class="kanban-cards" id="k-ghosted"></div>
+    </div>
+    <div class="kanban-col" data-status="rejected" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'rejected')">
+      <div class="kanban-col-header">Rejected <span class="kanban-count" id="k-count-rejected">0</span></div>
+      <div class="kanban-cards" id="k-rejected"></div>
+    </div>
+    <div class="kanban-col" data-status="offer" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event,'offer')">
+      <div class="kanban-col-header">Offer <span class="kanban-count" id="k-count-offer">0</span></div>
+      <div class="kanban-cards" id="k-offer"></div>
+    </div>
+  </div>
+
+  <!-- FLOW / SANKEY VIEW -->
+  <div class="sankey-view" id="sankey-view">
+    <div class="sankey-wrap">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">
+        How your tracked opportunities move between stages, across their full history (this view isn't affected by the filters above). Hover a bar or ribbon for exact counts.
+      </div>
+      <div id="sankey-svg-wrap"></div>
+      <div class="sankey-empty" id="sankey-empty" style="display:none">Add a few opportunities and move them through statuses to see your flow diagram here.</div>
+    </div>
+  </div>
+
+  <!-- DATA VIEW: full editor for the raw history behind every stat on the page -->
+  <div class="data-view" id="data-view">
+    <div class="data-intro">
+      Every stat on this page — medians, the funnel, the heatmap, the trend line, your streak, the Flow diagram — is calculated from each application's status history below, not stored separately. Fix a date or status here and it's fixed everywhere at once. Delete a stray record and it stops counting everywhere at once. There's nothing else to clean up.
+    </div>
+    <div class="data-search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="data-search-input" placeholder="Search companies or roles…" oninput="renderDataView()">
+    </div>
+    <div class="data-entries-wrap" id="data-entries-wrap"></div>
+  </div>
+
+  <!-- TABLE VIEW -->
+  <div class="table-view-layout" id="table-view">
+    <div class="binder-rail" id="binder-rail" onclick="handleBinderClick(event)">
+      <div class="binder-section" id="binder-terms-section">
+        <div class="binder-section-label">Terms</div>
+        <div class="binder-tabs" id="binder-terms"></div>
+      </div>
+      <div class="binder-section" id="binder-companies-section">
+        <div class="binder-section-label">Companies</div>
+        <div class="binder-tabs binder-companies-wrap" id="binder-companies"></div>
+      </div>
+    </div>
+    <div class="table-wrap">
+    <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th class="no-sort" style="width:36px">
+            <div class="th-check-wrap">
+              <input type="checkbox" class="row-check" id="check-all" onchange="toggleSelectAll(this.checked)" title="Select all">
+            </div>
+          </th>
+          <th onclick="setSort('company')">Company <span id="sort-company"></span></th>
+          <th onclick="setSort('term')">Term <span id="sort-term"></span></th>
+          <th onclick="setSort('priority')">Priority <span id="sort-priority"></span></th>
+          <th onclick="setSort('deadline')">Deadline <span id="sort-deadline"></span></th>
+          <th class="no-sort">Status</th>
+          <th class="no-sort">Notes</th>
+          <th class="no-sort">Link</th>
+          <th class="no-sort"></th>
+        </tr>
+      </thead>
+      <tbody id="tbl"></tbody>
+    </table>
+    </div>
+    <div id="empty-state" class="empty-state" style="display:none">
+      <div class="empty-icon">🎯</div>
+      <div class="empty-title">Nothing here yet</div>
+      <div class="empty-sub">Hit "Add" or press <strong>N</strong> to start tracking your applications.</div>
+    </div>
+    </div>
+  </div>
+</main>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- BULK ACTION BAR -->
+<div class="bulk-bar" id="bulk-bar">
+  <span id="bulk-count-label">0 selected</span>
+  <span>→ Move to:</span>
+  <select id="bulk-status-sel">
+    <option value="plan">Planning</option>
+    <option value="applied">Applied</option>
+    <option value="interview">Interview</option>
+    <option value="ghosted">Ghosted</option>
+    <option value="offer">Offer</option>
+    <option value="rejected">Rejected</option>
+  </select>
+  <button onclick="applyBulkStatus()">Apply</button>
+  <div class="bulk-bar-divider"></div>
+  <button onclick="openBulkDeadlineModal()" title="Give the same deadline to every selected opportunity (D)">📅 Set deadline</button>
+  <button class="bulk-deselect" onclick="clearSelection()" title="Deselect all">✕</button>
+</div>
+
+<!-- FAB -->
+<button class="fab" onclick="openQuickAdd()" title="Quick-add today's application (+)">+</button>
+
+<!-- QUICK-ADD MODAL -->
+<div class="modal-overlay" id="quick-modal" onclick="closeQuickAdd(event)">
+  <div class="modal-box">
+    <div class="modal-title">
+      Quick Apply
+      <em>Saved as Applied · today's date</em>
+    </div>
+    <div class="modal-field">
+      <label>Company *</label>
+      <input id="q-company" placeholder="e.g. Stripe" autocomplete="off" />
+    </div>
+    <div class="modal-field">
+      <label>Role</label>
+      <input id="q-role" placeholder="e.g. Product Design Intern" autocomplete="off" />
+    </div>
+    <div class="modal-field">
+      <label>Term (optional)</label>
+      <select id="q-term">
+        <option value="">No term</option>
+        <option value="fall">🍂 Fall</option>
+        <option value="spring">🌸 Spring</option>
+        <option value="summer">☀️ Summer</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="ctrl-btn" onclick="closeQuickAdd()">Cancel</button>
+      <button class="ctrl-btn primary" onclick="quickAddSave()">✓ Save & log</button>
+    </div>
+  </div>
+</div>
+
+<!-- QUICK CAPTURE (BOOKMARKLET) MODAL -->
+<div class="modal-overlay" id="capture-modal" onclick="closeCaptureModal(event)">
+  <div class="modal-box wide">
+    <div class="modal-title">
+      🔖 Quick Capture
+      <em>Log a posting from any job page in one click</em>
+    </div>
+    <div class="modal-field" style="margin-bottom:14px;">
+      <label>1. Drag this to your bookmarks bar</label>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+        <a id="capture-bookmarklet-link" href="#" class="ctrl-btn primary"
+           style="text-decoration:none;display:inline-block;cursor:grab;"
+           onclick="return false;" title="Drag me to your bookmarks bar — don't click">
+          🔖 Log Internship
+        </a>
+        <span style="font-size:12px;color:var(--muted);">Drag, don't click</span>
+      </div>
+    </div>
+    <div class="modal-field" style="margin-bottom:14px;">
+      <label>2. On a job posting page, click it</label>
+      <p style="font-size:13px;color:var(--muted);line-height:1.5;margin-top:2px;">
+        It grabs the page title and URL and opens this tracker with the Add form pre-filled.
+        Company/role are a best guess from the page title — double-check before saving.
+      </p>
+    </div>
+    <div class="modal-field" id="capture-fallback" style="margin-bottom:14px;display:none;">
+      <label>Can't drag it? Copy this code into a new bookmark's URL field</label>
+      <textarea class="bulk-textarea" id="capture-bookmarklet-code" readonly
+                style="min-height:70px;font-size:11px;" onclick="this.select()"></textarea>
+    </div>
+    <div class="modal-field" id="capture-warning" style="display:none;margin-bottom:6px;">
+      <p style="font-size:12px;color:var(--amber);line-height:1.5;">
+        ⚠️ This tracker is currently a local file (<code>file://</code>), not a web address. Some browsers block
+        job-posting pages from opening local files for security, so the bookmarklet may not work reliably until
+        this is hosted at a real URL — see Quick Capture notes for details.
+      </p>
+    </div>
+    <div class="modal-actions">
+      <button class="ctrl-btn" onclick="closeCaptureModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- BULK DEADLINE MODAL -->
+<div class="modal-overlay" id="bulk-deadline-modal" onclick="closeBulkDeadlineModal(event)">
+  <div class="modal-box">
+    <div class="modal-title">
+      Set deadline
+      <em id="bulk-deadline-sub">Applies to 0 selected</em>
+    </div>
+    <div class="modal-field">
+      <label>Deadline</label>
+      <input id="bulk-deadline-input" type="date" onkeydown="if(event.key==='Enter'){event.preventDefault(); applyBulkDeadline();}" />
+    </div>
+    <div class="modal-actions">
+      <button class="ctrl-btn" onclick="closeBulkDeadlineModal()">Cancel</button>
+      <button class="ctrl-btn primary" onclick="applyBulkDeadline()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- BULK PASTE MODAL -->
+<div class="modal-overlay" id="bulk-modal" onclick="closeBulkPasteBgClick(event)">
+  <div class="modal-box wide">
+    <div class="modal-title">
+      Bulk Paste
+      <em>Paste a company followed by its roles, blank line between companies</em>
+    </div>
+    <div class="modal-field">
+      <label>Paste text</label>
+      <textarea class="bulk-textarea" id="bulk-input" oninput="onBulkInputChange()" placeholder="Varda
+Vehicle Integration and Test Internship - Fall 2026
+Mechanical Engineering Internship - Fall 2026
+
+Rocket Lab
+Supply Chain Intern Fall 2026
+Mechanical Engineering Intern Fall 2026
+
+Blue Origin
+Spring 2027 Engineering Intern - Undergraduate"></textarea>
+    </div>
+    <div class="bulk-defaults-row">
+      <div class="modal-field">
+        <label>Default status</label>
+        <select id="bulk-default-status">
+          <option value="plan">Planning</option>
+          <option value="applied">Applied</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label>Default priority</label>
+        <select id="bulk-default-priority">
+          <option value="high">High</option>
+          <option value="med" selected>Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+    </div>
+    <div class="bulk-preview-wrap" id="bulk-preview-wrap">
+      <div class="bulk-empty-hint">Paste above and parsed entries will show here to review before adding — edit any field, or ✕ to drop a row.</div>
+    </div>
+    <div class="bulk-count-label" id="bulk-count-label"></div>
+    <div class="modal-actions">
+      <button class="ctrl-btn" onclick="closeBulkPaste()">Cancel</button>
+      <button class="ctrl-btn primary" id="bulk-add-btn" onclick="commitBulkAdd()" disabled>Add all</button>
+    </div>
+  </div>
+</div>
+
+<!-- SHORTCUTS OVERLAY -->
+<div class="shortcuts-overlay" id="shortcuts-overlay" onclick="closeShortcuts(event)">
+  <div class="shortcuts-box">
+    <div class="shortcuts-title">
+      Keyboard Shortcuts
+      <button class="shortcuts-close" onclick="closeShortcuts()">✕</button>
+    </div>
+    <div class="shortcut-row"><div><span class="shortcut-key">N</span></div><div class="shortcut-desc">Open quick-add form</div></div>
+    <div class="shortcut-row"><div><span class="shortcut-key">K</span></div><div class="shortcut-desc">Toggle Kanban / Table view</div></div>
+    <div class="shortcut-row"><div><span class="shortcut-key">V</span></div><div class="shortcut-desc">Cycle Table → Board → Flow view</div></div>
+    <div class="shortcut-row"><div><span class="shortcut-key">F</span></div><div class="shortcut-desc">Focus search bar</div></div>
+    <div class="shortcut-row"><div><span class="shortcut-key">B</span></div><div class="shortcut-desc">Open bulk paste</div></div>
+    <div class="shortcut-row"><div><span class="shortcut-key">E</span></div><div class="shortcut-desc">Export CSV</div></div>
+    <div class="shortcut-row"><div><span class="shortcut-key">A</span></div><div class="shortcut-desc">Select / deselect all rows</div></div>
+    <div class="shortcut-row"><div><span class="shortcut-key">D</span></div><div class="shortcut-desc">Set deadline for selected rows</div></div>
+    <div class="shortcut-row"><div><span class="shortcut-key">⌫</span></div><div class="shortcut-desc">Delete selected rows</div></div>
+    <div class="shortcut-row"><div><span class="shortcut-key">↵</span></div><div class="shortcut-desc">Next field, or submit from the last field</div></div>
+    <div class="shortcut-row"><div><span class="shortcut-key">Esc</span></div><div class="shortcut-desc">Close any open panel</div></div>
+    <div class="shortcut-row"><div><span class="shortcut-key">?</span></div><div class="shortcut-desc">Show this cheat sheet</div></div>
+  </div>
+</div>
+
+<!-- HEATMAP TOOLTIP -->
+<div class="heatmap-tooltip" id="heatmap-tooltip"></div>
+
+<!-- CLOUD SYNC MODAL -->
+<div class="cloud-modal-overlay" id="cloud-modal" onclick="cloudModalBgClick(event)">
+  <div class="cloud-modal-box">
+    <div class="cloud-modal-header">
+      <div class="cloud-modal-title">☁️ Cloud Sync</div>
+      <button class="cloud-modal-close" onclick="closeCloudModal()">✕</button>
+    </div>
+    <div class="cloud-modal-sub">
+      Sync this tracker across browsers, profiles, and computers using a free Firebase project.
+      One-time setup: create a project at <a href="https://console.firebase.google.com" target="_blank" rel="noopener">console.firebase.google.com</a>,
+      enable <strong>Firestore Database</strong>, then paste your web app config below.
+      Use the <strong>same Sync Key</strong> on every device you want linked together.
+    </div>
+
+    <div class="cloud-security-note">
+      <strong>⚠️ Security note</strong>
+      Your Firebase config and Sync Key are stored in this browser's localStorage and are visible in plain text
+      (e.g. via DevTools, or in a JSON backup you export). Anyone who obtains your Sync Key can read and overwrite
+      this data, because there's no login step — just matching keys. Use a long, unguessable Sync Key (not your name),
+      never share it, and lock down your Firestore database with rules that scope access to a single document instead
+      of leaving the whole database open. Suggested starting rule for your project's <strong>Firestore &gt; Rules</strong> tab:
+    </div>
+    <div class="cloud-rules-box" id="cloud-rules-box">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /trackers/{syncKey} {
+      allow read, write: if syncKey.size() >= 20;
+    }
+  }
+}</div>
+    <button class="ctrl-btn small-copy" type="button" onclick="copyCloudRules()">Copy rules snippet</button>
+
+    <div class="cloud-field-label" style="margin-top:14px">Firebase config (paste the object from your project settings)</div>
+    <textarea class="cloud-textarea" id="cloud-config-input" placeholder='{
+  apiKey: "...",
+  authDomain: "...",
+  projectId: "...",
+  storageBucket: "...",
+  messagingSenderId: "...",
+  appId: "..."
+}'></textarea>
+
+    <div class="cloud-field-label">Sync key (use the same one on every device — keep it long &amp; random, not a guessable phrase)</div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input type="text" class="cloud-input" id="cloud-synckey-input" placeholder="e.g. 8f2a1c9e-4b7d-4e2a-9c3f-1a2b3c4d5e6f" style="flex:1;" />
+      <button class="ctrl-btn small-copy" type="button" onclick="generateSyncKey()" title="Generate a long random key">🎲 Generate</button>
+    </div>
+
+    <div class="cloud-inline-msg" id="cloud-inline-msg"></div>
+
+    <div class="cloud-modal-footer">
+      <button class="btn-cloud-disconnect" onclick="disconnectCloud()">Disconnect</button>
+      <button class="btn-cloud-save" onclick="handleSaveCloudConfig()">Connect &amp; Sync</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let entries = [];
+let sortKey = 'priority';
+let sortAsc = true;
+let openNotes = new Set();
+let selectedRows = new Set(); // indices in entries[]
+let currentView = 'table'; // 'table' | 'kanban' | 'sankey' | 'data'
+let binderTab = null; // { type: 'term'|'company', value: string } | null — active binder-rail highlight
+let dragSrcIdx = null;
+let editIdx = null; // set while the add-form is being used to edit an existing entry
+
+const STORAGE_KEY = 'intern_tracker_v2';
+const STREAK_KEY = 'intern_streak';
+const GOAL_KEY = 'intern_goal';
+const GHOST_DAYS_KEY = 'intern_ghost_days';
+const DEFAULT_GHOST_DAYS = 30;
+const SUBSYSTEM_TAGS = ['TPS/Hypersonics','Propulsion','Structures','Avionics','GNC','Test'];
+const INTERVIEW_STAGES = ['oa','phone','onsite'];
+const interviewStageLabel = { oa: 'OA', phone: 'Phone Screen', onsite: 'Onsite/Final' };
+
+function getGhostDays() {
+  const v = parseInt(localStorage.getItem(GHOST_DAYS_KEY), 10);
+  return (Number.isFinite(v) && v > 0) ? v : DEFAULT_GHOST_DAYS;
+}
+function onGhostDaysChange() {
+  const input = document.getElementById('ghost-days');
+  let v = parseInt(input.value, 10);
+  if (!Number.isFinite(v) || v < 1) v = DEFAULT_GHOST_DAYS;
+  localStorage.setItem(GHOST_DAYS_KEY, String(v));
+  input.value = v;
+  checkGhosting();
+  render();
+  showToast('Auto-ghost threshold set to ' + v + ' days');
+}
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
+function esc(str) {
+  return (str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── Storage ─────────────────────────────────────────────────────────────────
+function load() {
+  try { entries = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch(e) { entries = []; }
+  entries.forEach(normalizeMilestones);
+  entries.forEach(ensureHistory);
+  checkGhosting();
+}
+function save() {
+  entries.forEach(normalizeMilestones);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  if (window.pushToCloud) window.pushToCloud();
+}
+
+// ─── Status history (drives auto-ghosting + the Sankey flow view) ─────────────
+// Every status change is appended here as { status, at }. Backfilled for older
+// entries that predate this feature so the flow view still has something to show.
+function ensureHistory(e) {
+  if (!Array.isArray(e.history) || e.history.length === 0) {
+    e.history = [{ status: e.status || 'plan', at: e.added || Date.now() }];
+  }
+  return e;
+}
+function recordHistory(e, status) {
+  ensureHistory(e);
+  const last = e.history[e.history.length - 1];
+  if (!last || last.status !== status) {
+    e.history.push({ status, at: Date.now() });
+  }
+}
+
+// ─── Multi-round interview tracking (OA -> Phone Screen -> Onsite/Final) ────
+// A lightweight sub-stage on top of the "interview" status, rather than a
+// full status-machine rewrite: e.interviewStage holds the furthest round
+// reached, and stageHistory timestamps each round so the funnel stats and
+// per-round conversion can be computed without disturbing the existing
+// Kanban/Sankey status pipeline.
+function recordStageHistory(e, stage) {
+  if (!Array.isArray(e.stageHistory)) e.stageHistory = [];
+  const last = e.stageHistory[e.stageHistory.length - 1];
+  if (!last || last.stage !== stage) e.stageHistory.push({ stage, at: Date.now() });
+}
+function changeInterviewStage(idx, stage) {
+  const e = entries[idx];
+  if (!e) return;
+  e.interviewStage = stage;
+  if (stage) recordStageHistory(e, stage);
+  save(); render();
+}
+// Counts, for entries that ever reached "interview", how many made it to each
+// round — a real funnel instead of one lumped "Interview" bucket.
+function computeInterviewFunnel() {
+  const reached = { interview: 0, oa: 0, phone: 0, onsite: 0 };
+  entries.forEach(e => {
+    if (!e.hitInterview) return;
+    reached.interview++;
+    const stages = new Set((e.stageHistory || []).map(s => s.stage));
+    if (e.interviewStage) stages.add(e.interviewStage);
+    if (stages.has('oa')) reached.oa++;
+    if (stages.has('phone')) reached.phone++;
+    if (stages.has('onsite')) reached.onsite++;
+  });
+  return reached;
+}
+
+// Applications that have sat in "Applied" past the ghost threshold with no
+// update are quietly moved to "Ghosted" — still counted as applied, just flagged
+// as likely radio silence rather than an active pipeline entry.
+function checkGhosting() {
+  const thresholdMs = getGhostDays() * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  let ghostedCount = 0;
+  entries.forEach(e => {
+    if (e.status !== 'applied') return;
+    ensureHistory(e);
+    const last = e.history[e.history.length - 1];
+    const since = last ? last.at : (e.added || now);
+    if (now - since >= thresholdMs) {
+      e.status = 'ghosted';
+      recordHistory(e, 'ghosted');
+      ghostedCount++;
+    }
+  });
+  if (ghostedCount > 0) {
+    save();
+    if (typeof showToast === 'function') {
+      showToast('👻 ' + ghostedCount + ' application' + (ghostedCount !== 1 ? 's' : '') + ' moved to Ghosted (no update in ' + getGhostDays() + '+ days)');
+    }
+  }
+}
+
+// Once an entry ever reaches "interview" or "offer", remember that permanently —
+// moving it to "rejected" later shouldn't erase the fact that it got that far.
+function normalizeMilestones(e) {
+  if (e.status === 'interview' || e.status === 'offer') e.hitInterview = true;
+  if (e.status === 'offer') e.hitOffer = true;
+  return e;
+}
+// Manual override for accidental drags/status changes: lets the user un-credit
+// a milestone that was only ever hit by mistake, without affecting anything else.
+function clearMilestone(idx, which) {
+  const e = entries[idx];
+  if (!e) return;
+  if (which === 'interview') {
+    e.hitInterview = false;
+    e.hitOffer = false; // an offer implies an interview happened, so clear both
+  } else if (which === 'offer') {
+    e.hitOffer = false;
+  }
+  save();
+  render();
+}
+// Only surface a chip (with a way to clear it) when the credit is "stale" —
+// i.e. the entry has since moved off that stage but the milestone stuck around.
+// While an entry currently sits in Interview/Offer, that's already obvious from
+// its column/status badge, so no extra chip is shown for it.
+function milestoneChipsHtml(e, idx) {
+  let html = '';
+  if (e.hitInterview && e.status !== 'interview' && e.status !== 'offer') {
+    html += `<button class="milestone-chip mi-interview" onclick="event.stopPropagation(); clearMilestone(${idx},'interview')" title="Credited for reaching the interview stage. Click to remove if this was added by mistake.">🎤 Interviewed <span class="mi-x">✕</span></button>`;
+  }
+  if (e.hitOffer && e.status !== 'offer') {
+    html += `<button class="milestone-chip mi-offer" onclick="event.stopPropagation(); clearMilestone(${idx},'offer')" title="Credited for receiving an offer. Click to remove if this was added by mistake.">🏆 Offer <span class="mi-x">✕</span></button>`;
+  }
+  return html ? `<div class="milestone-row">${html}</div>` : '';
+}
+function tagChipsHtml(e) {
+  if (!e.tags || !e.tags.length) return '';
+  return `<div>${e.tags.map(t => `<span class="tag-chip">${esc(t)}</span>`).join('')}</div>`;
+}
+function referralBadgeHtml(e) {
+  if (!e.referralName && !e.referralEmail && !e.referralLinkedIn) return '';
+  const tip = [e.referralName, e.referralEmail, e.referralLinkedIn].filter(Boolean).join(' · ');
+  return `<span class="referral-badge" title="${esc(tip)}">🤝 ${esc(e.referralName || 'Contact')}</span>`;
+}
+function resumeVersionHtml(e) {
+  if (!e.resumeVersion) return '';
+  return `<span class="referral-badge" style="color:var(--blue);background:var(--blue-bg)" title="Resume/story-bank version used">📄 ${esc(e.resumeVersion)}</span>`;
+}
+// Small round-selector shown only while an entry is in the Interview status —
+// lets OA / Phone Screen / Onsite be tracked without a separate status value.
+function interviewStageSelHtml(e, idx) {
+  if (e.status !== 'interview') return '';
+  return `<select class="stage-sel" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" onchange="event.stopPropagation(); changeInterviewStage(${idx}, this.value)" title="Interview round reached">
+    <option value="" ${!e.interviewStage ? 'selected' : ''}>Round?</option>
+    <option value="oa" ${e.interviewStage === 'oa' ? 'selected' : ''}>OA</option>
+    <option value="phone" ${e.interviewStage === 'phone' ? 'selected' : ''}>Phone Screen</option>
+    <option value="onsite" ${e.interviewStage === 'onsite' ? 'selected' : ''}>Onsite/Final</option>
+  </select>`;
+}
+function loadGoal() {
+  const g = localStorage.getItem(GOAL_KEY);
+  if (g) document.getElementById('goal-input').value = g;
+}
+
+// ─── Streak ───────────────────────────────────────────────────────────────────
+// Tracks consecutive days on which a new application was actually added — not
+// consecutive days the tracker was merely opened, edited, or auto-ghosted.
+// updateStreak() is called only from the true "added something new" sites:
+// addEntry() (new-entry branch), quickAddSave(), and commitBulkAdd().
+function dateStrDaysAgo(n) {
+  // Calendar-safe: subtracts whole days, not 24h blocks, so it can't land on
+  // the wrong date across a daylight-saving transition.
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toDateString();
+}
+function updateStreak() {
+  const today = new Date().toDateString();
+  let data = {};
+  try { data = JSON.parse(localStorage.getItem(STREAK_KEY) || '{}'); } catch(e) {}
+  if (data.last === today) return; // already logged an application today
+  const yesterday = dateStrDaysAgo(1);
+  data.streak = (data.last === yesterday) ? (data.streak || 0) + 1 : 1;
+  data.best = Math.max(data.best || 0, data.streak);
+  data.last = today;
+  localStorage.setItem(STREAK_KEY, JSON.stringify(data));
+}
+function getStreak() {
+  try {
+    const data = JSON.parse(localStorage.getItem(STREAK_KEY) || '{}');
+    const today = new Date().toDateString();
+    const yesterday = dateStrDaysAgo(1);
+    if (data.last === today || data.last === yesterday) return data.streak || 0;
+    return 0;
+  } catch(e) { return 0; }
+}
+
+// ─── Deadline helpers ─────────────────────────────────────────────────────────
+function deadlineDiff(d) {
+  if (!d) return null;
+  return Math.ceil((new Date(d) - new Date()) / 86400000);
+}
+function deadlineDisplay(d) {
+  const diff = deadlineDiff(d);
+  if (diff === null) return null;
+  const fmt = new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (diff < 0) return { text: fmt + ' (past)', cls: 'deadline-urgent' };
+  if (diff === 0) return { text: 'Today!', cls: 'deadline-urgent' };
+  if (diff <= 7) return { text: fmt + ' (' + diff + 'd)', cls: 'deadline-urgent' };
+  if (diff <= 14) return { text: fmt + ' (' + diff + 'd)', cls: 'deadline-soon' };
+  return { text: fmt, cls: 'deadline-ok' };
+}
+
+const statusLabel = { plan:'Planning', applied:'Applied', interview:'Interview', ghosted:'Ghosted', offer:'Offer', rejected:'Rejected', active:'Still Active' };
+const priOrder = { high: 0, med: 1, low: 2 };
+const termIcon = { fall: '🍂', spring: '🌸', summer: '☀️' };
+const termChronOrder = { spring: 0, summer: 1, fall: 2 };
+
+// ─── Term helpers ─────────────────────────────────────────────────────────────
+function termInfo(e) {
+  if (!e || !e.term) return null;
+  const label = e.term.charAt(0).toUpperCase() + e.term.slice(1);
+  const yr = e.termYear ? ` '${String(e.termYear).slice(-2)}` : '';
+  return { text: `${termIcon[e.term] || ''} ${label}${yr}`, cls: 'term-' + e.term };
+}
+function termFullLabel(e) {
+  if (!e || !e.term) return '';
+  const label = e.term.charAt(0).toUpperCase() + e.term.slice(1);
+  return e.termYear ? `${label} ${e.termYear}` : label;
+}
+
+// ─── Sort ─────────────────────────────────────────────────────────────────────
+function setSort(key) {
+  if (sortKey === key) sortAsc = !sortAsc;
+  else { sortKey = key; sortAsc = true; }
+  ['company','term','priority','deadline'].forEach(k => {
+    document.getElementById('sort-' + k).textContent = '';
+  });
+  document.getElementById('sort-' + key).textContent = sortAsc ? ' ↑' : ' ↓';
+  render();
+}
+
+// ─── Binder rail (table view only) ────────────────────────────────────────────
+// Highlights matching rows in place rather than filtering them out — a quick
+// visual scan tool that sits alongside (not instead of) the term/company dropdowns.
+function renderBinderRail() {
+  const rail = document.getElementById('binder-rail');
+  if (!rail) return;
+  if (!entries.length) { rail.style.display = 'none'; return; }
+  rail.style.display = '';
+
+  const presentTerms = ['spring', 'summer', 'fall'].filter(t => entries.some(e => e.term === t));
+  const termsSection = document.getElementById('binder-terms-section');
+  termsSection.style.display = presentTerms.length ? '' : 'none';
+  document.getElementById('binder-terms').innerHTML = presentTerms.map(t => {
+    const active = binderTab && binderTab.type === 'term' && binderTab.value === t ? 'active' : '';
+    const label = t.charAt(0).toUpperCase() + t.slice(1);
+    return `<button class="binder-tab binder-tab-${t} ${active}" data-type="term" data-value="${t}" title="${label}">${termIcon[t] || ''} ${label}</button>`;
+  }).join('');
+
+  const companies = Array.from(new Set(entries.map(e => (e.company || '').trim()).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b));
+  const companiesSection = document.getElementById('binder-companies-section');
+  companiesSection.style.display = companies.length ? '' : 'none';
+  document.getElementById('binder-companies').innerHTML = companies.map(c => {
+    const active = binderTab && binderTab.type === 'company' && binderTab.value === c ? 'active' : '';
+    return `<button class="binder-tab binder-tab-company ${active}" data-type="company" data-value="${esc(c)}" title="${esc(c)}">${esc(c)}</button>`;
+  }).join('');
+}
+
+function handleBinderClick(event) {
+  const btn = event.target.closest('.binder-tab');
+  if (!btn) return;
+  selectBinderTab(btn.dataset.type, btn.dataset.value);
+}
+
+function selectBinderTab(type, value) {
+  // Clicking the active tab again turns highlighting off — same toggle feel as a real binder tab.
+  binderTab = (binderTab && binderTab.type === type && binderTab.value === value) ? null : { type, value };
+  render();
+}
+
+function binderRowClass(e) {
+  if (!binderTab) return '';
+  const match = binderTab.type === 'term' ? e.term === binderTab.value : e.company === binderTab.value;
+  if (!match) return 'row-dim';
+  return binderTab.type === 'term' ? `row-lit row-lit-${binderTab.value}` : 'row-lit row-lit-company';
+}
+
+// ─── Filter + sort ────────────────────────────────────────────────────────────
+function populateCompanyFilter() {
+  const sel = document.getElementById('filter-company');
+  const prev = sel.value;
+  const companies = Array.from(new Set(entries.map(e => (e.company || '').trim()).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b));
+  sel.innerHTML = '<option value="">All companies</option>' +
+    companies.map(c => `<option value="${c.replace(/"/g, '&quot;')}">${c}</option>`).join('');
+  // Restore previous selection if it's still a valid company, otherwise reset to "All"
+  if (prev && companies.includes(prev)) sel.value = prev;
+  else sel.value = '';
+}
+
+function getFiltered() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  const fs = document.getElementById('filter-status').value;
+  const fp = document.getElementById('filter-priority').value;
+  const ft = document.getElementById('filter-term').value;
+  const fc = document.getElementById('filter-company').value;
+  const ftag = document.getElementById('filter-tag') ? document.getElementById('filter-tag').value : '';
+  return entries.filter(e => {
+    const text = [
+      e.company, e.role, e.notes, e.referralName, e.referralEmail,
+      e.referralLinkedIn, e.resumeVersion, ...(e.tags || [])
+    ].filter(Boolean).join(' ').toLowerCase();
+    return (!q || text.includes(q)) && (!fs || e.status === fs) && (!fp || e.priority === fp) && (!ft || e.term === ft) && (!fc || e.company === fc) && (!ftag || (e.tags || []).includes(ftag));
+  }).sort((a, b) => {
+    let va, vb;
+    if (sortKey === 'company') { va = a.company.toLowerCase(); vb = b.company.toLowerCase(); }
+    else if (sortKey === 'priority') { va = priOrder[a.priority ?? 'med']; vb = priOrder[b.priority ?? 'med']; }
+    else if (sortKey === 'deadline') {
+      va = a.deadline ? deadlineDiff(a.deadline) : 9999;
+      vb = b.deadline ? deadlineDiff(b.deadline) : 9999;
+    }
+    else if (sortKey === 'term') {
+      const val = (e) => !e.term ? 9999999 : (parseInt(e.termYear) || 0) * 10 + (termChronOrder[e.term] ?? 9);
+      va = val(a); vb = val(b);
+    }
+    if (va < vb) return sortAsc ? -1 : 1;
+    if (va > vb) return sortAsc ? 1 : -1;
+    return 0;
+  });
+}
+
+// ─── Stats + pipeline ────────────────────────────────────────────────────────
+// ─── Momentum (week-over-week trend) ──────────────────────────────────────────
+// Counts how many entries were moved to "applied" in the trailing 7 days vs the
+// 7 days before that, using each entry's status history. This surfaces a slow
+// week honestly instead of letting it hide inside an ever-growing lifetime total.
+function computeMomentum() {
+  const now = Date.now();
+  const oneWeek = 7 * 24 * 60 * 60 * 1000;
+  const thisWeekStart = now - oneWeek;
+  const lastWeekStart = now - 2 * oneWeek;
+  let thisWeek = 0, lastWeek = 0;
+  entries.forEach(e => {
+    (e.history || []).forEach(h => {
+      if (h.status !== 'applied') return;
+      if (h.at >= thisWeekStart) thisWeek++;
+      else if (h.at >= lastWeekStart && h.at < thisWeekStart) lastWeek++;
+    });
+  });
+  return { thisWeek, lastWeek };
+}
+
+function updateStats() {
+  const total = entries.length;
+  const applied = entries.filter(e => ['applied','interview','ghosted','offer','rejected'].includes(e.status)).length;
+  const interviews = entries.filter(e => e.hitInterview).length;
+  const offers = entries.filter(e => e.hitOffer).length;
+  const goal = parseInt(document.getElementById('goal-input').value) || 20;
+
+  document.getElementById('stat-total').textContent = total;
+  // Distinct companies, so two roles at the same company (e.g. Test Eng +
+  // Propulsion at Blue Origin) read as one company with two tracks, not two
+  // unrelated data points.
+  const companyCount = new Set(entries.map(e => (e.company || '').trim().toLowerCase()).filter(Boolean)).size;
+  document.getElementById('stat-companies').textContent =
+    `${companyCount} compan${companyCount === 1 ? 'y' : 'ies'}`;
+  document.getElementById('stat-applied').textContent = applied;
+  document.getElementById('stat-interviews').textContent = interviews;
+  document.getElementById('stat-offers').textContent = offers;
+
+  const rate = applied > 0 ? Math.round(interviews / applied * 100) : 0;
+  document.getElementById('stat-rate').textContent = rate + '% interview rate';
+
+  const momentum = computeMomentum();
+  const momEl = document.getElementById('stat-momentum');
+  if (momEl) {
+    let cls, text;
+    if (momentum.thisWeek === 0 && momentum.lastWeek === 0) {
+      cls = 'flat'; text = '— No activity yet';
+    } else if (momentum.thisWeek > momentum.lastWeek) {
+      cls = 'up'; text = `▲ +${momentum.thisWeek - momentum.lastWeek} vs last week`;
+    } else if (momentum.thisWeek < momentum.lastWeek) {
+      cls = 'down'; text = `▼ ${momentum.thisWeek - momentum.lastWeek} vs last week`;
+    } else {
+      cls = 'flat'; text = `— Same as last week (${momentum.thisWeek})`;
+    }
+    momEl.className = 'stat-momentum ' + cls;
+    momEl.textContent = text;
+  }
+
+  const pct = Math.min(100, Math.round(applied / goal * 100));
+  document.getElementById('bar-fill').style.width = pct + '%';
+
+  const phrases = [
+    [0, 'Let\'s get started — add your first internship!'],
+    [1, 'Great start! Keep the momentum going.'],
+    [5, 'Nice work — 5 applications sent!'],
+    [10, '10 applications! You\'re on a roll 🚀'],
+    [20, 'Incredible hustle — 20 applications!'],
+    [50, 'You\'re a machine! 50 apps done 💪'],
+  ];
+  let phrase = phrases[0][1];
+  for (const [n, p] of phrases) { if (applied >= n) phrase = p; }
+  document.getElementById('prog-phrase').textContent = phrase;
+
+  const marks = [1, 5, 10, 20, 30, 50];
+  document.getElementById('milestones').innerHTML = marks.map(m =>
+    `<span class="milestone ${applied >= m ? 'done' : ''}">${applied >= m ? '✓' : ''} ${m}</span>`
+  ).join('');
+
+  const streak = getStreak();
+  document.getElementById('streak-text').textContent = streak + ' day streak';
+}
+
+// ─── Time-to-response analytics ────────────────────────────────────────────
+// Median days between pipeline transitions, computed from each entry's
+// status history — more diagnostic than a single lifetime conversion %,
+// since it shows how fast (or slow) things are actually moving.
+function median(arr) {
+  if (!arr.length) return null;
+  const s = arr.slice().sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+function computeResponseTimes() {
+  const toResponse = [], toInterview = [], toDecision = [];
+  const rows = [];
+  entries.forEach((e, entryIdx) => {
+    const h = e.history || [];
+    let appliedAt = null, interviewAt = null;
+    h.forEach(ev => {
+      if (ev.status === 'applied' && appliedAt === null) appliedAt = ev.at;
+      if (ev.status === 'interview' && interviewAt === null) interviewAt = ev.at;
+    });
+    let firstResponseAt = null, decisionAt = null, decisionStatus = null;
+    if (appliedAt) {
+      const afterApplied = h.find(ev => ev.at > appliedAt);
+      if (afterApplied) {
+        firstResponseAt = afterApplied.at;
+        toResponse.push((afterApplied.at - appliedAt) / 86400000);
+      }
+      if (interviewAt) toInterview.push((interviewAt - appliedAt) / 86400000);
+    }
+    if (interviewAt) {
+      const decision = h.find(ev => ev.at > interviewAt && ['offer', 'rejected', 'ghosted'].includes(ev.status));
+      if (decision) {
+        decisionAt = decision.at;
+        decisionStatus = decision.status;
+        toDecision.push((decision.at - interviewAt) / 86400000);
+      }
+    }
+    if (appliedAt) {
+      rows.push({
+        entryIdx,
+        company: e.company || '(no company)',
+        appliedAt, firstResponseAt, interviewAt, decisionAt, decisionStatus,
+      });
+    }
+  });
+  return {
+    medToResponse: median(toResponse),
+    medToInterview: median(toInterview),
+    medToDecision: median(toDecision),
+    rows,
+  };
+}
+
+// Renders the response-time card and interview funnel. Called from render()
+// so it always reflects the current (unfiltered) dataset.
+function renderInsights() {
+  const wrap = document.getElementById('insights-card');
+  if (!wrap) return;
+  if (!entries.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+
+  const rt = computeResponseTimes();
+  lastResponseTimes = rt; // stashed so the detail table can be redrawn without recomputing
+  const fmt = d => d === null ? '—' : (Math.round(d * 10) / 10) + 'd';
+  const respToResponse = document.getElementById('resp-to-response');
+  const respToInterview = document.getElementById('resp-to-interview');
+  const respToDecision = document.getElementById('resp-to-decision');
+  if (respToResponse) respToResponse.textContent = fmt(rt.medToResponse);
+  if (respToInterview) respToInterview.textContent = fmt(rt.medToInterview);
+  if (respToDecision) respToDecision.textContent = fmt(rt.medToDecision);
+
+  const funnel = computeInterviewFunnel();
+  const funnelLabels = { interview: 'Reached Interview', oa: 'OA', phone: 'Phone Screen', onsite: 'Onsite/Final' };
+  const funnelKeys = ['interview', 'oa', 'phone', 'onsite'];
+  const funnelEl = document.getElementById('funnel-wrap');
+  if (funnelEl) {
+    funnelEl.innerHTML = funnel.interview === 0
+      ? '<span style="font-size:12px;color:var(--muted)">No interviews yet — funnel will fill in once you land one.</span>'
+      : funnelKeys.map((k, i) => {
+          const step = `<div class="funnel-step"><b>${funnel[k]}</b>${funnelLabels[k]}</div>`;
+          return i < funnelKeys.length - 1 ? step + '<span class="funnel-arrow">→</span>' : step;
+        }).join('');
+  }
+}
+
+// ─── Response-time formatting helpers (medians card) ────────────────────────
+let lastResponseTimes = null;
+function fmtDate(ts) {
+  if (!ts) return '<span style="color:var(--muted)">—</span>';
+  return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+function fmtDays(a, b) {
+  if (!a || !b) return '<span style="color:var(--muted)">—</span>';
+  return (Math.round((b - a) / 86400000 * 10) / 10) + 'd';
+}
+
+// ─── DATA VIEW ────────────────────────────────────────────────────────────
+// A dedicated page for editing the raw status-history record behind every
+// stat in the tracker (medians, funnel, heatmap, trend line, streak, Flow
+// diagram) — nothing here is cached or duplicated, so a fix made in one
+// history record is the fix everywhere it's used. Unlike the old inline
+// "Show detail" table (which only surfaced the 4 dates the median
+// calculations use), this page shows and edits every raw history point per
+// entry: you can change a record's status, change its date, delete a
+// mistaken one outright, or add one that's missing — full control, not just
+// the four checkpoint fields.
+const DATA_EDITABLE_STATUSES = ['plan', 'applied', 'interview', 'ghosted', 'offer', 'rejected'];
+
+// After any history edit, keep the entry's "current status" field in sync
+// with its most recent (by time) history record — that's the invariant the
+// rest of the app already relies on everywhere else a status changes (see
+// recordHistory/onDrop/etc, which always set .status and push a matching
+// history record together). Also re-sorts history into time order, since
+// several features (Flow diagram, auto-ghosting, streak) assume it's sorted.
+function syncStatusFromHistory(e) {
+  ensureHistory(e);
+  e.history.sort((a, b) => a.at - b.at);
+  e.status = e.history[e.history.length - 1].status;
+}
+
+function renderDataView() {
+  const wrap = document.getElementById('data-entries-wrap');
+  if (!wrap) return;
+  if (!entries.length) {
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:1rem 0">No applications tracked yet — add one to see its history here.</div>';
+    return;
+  }
+  const q = (document.getElementById('data-search-input')?.value || '').trim().toLowerCase();
+  const list = entries
+    .map((e, idx) => ({ e, idx }))
+    .filter(({ e }) => !q || (e.company || '').toLowerCase().includes(q) || (e.role || '').toLowerCase().includes(q))
+    .sort((a, b) => (a.e.company || '').localeCompare(b.e.company || ''));
+  if (!list.length) {
+    wrap.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:1rem 0">No matches.</div>';
+    return;
+  }
+  wrap.innerHTML = list.map(({ e, idx }) => renderDataEntryCard(e, idx)).join('');
+}
+
+function renderDataEntryCard(e, idx) {
+  ensureHistory(e);
+  const sorted = e.history.slice().sort((a, b) => a.at - b.at);
+  const rowsHtml = sorted.map(h => dataHistRow(idx, e.history.indexOf(h), h)).join('');
+  const label = statusLabel[e.status] || e.status;
+  return `
+    <div class="data-entry-card">
+      <div class="data-entry-header">
+        <div>
+          <div class="data-entry-company">${esc(e.company || '(no company)')}</div>
+          <div class="data-entry-role">${e.role ? esc(e.role) + ' · ' : ''}<span class="data-entry-status">${esc(label)}</span></div>
+        </div>
+        <div class="data-entry-actions">
+          <button class="ctrl-btn small-copy" onclick="editEntry(${idx})" title="Edit company, role, deadline, notes, etc.">✎ Edit info</button>
+          <button class="ctrl-btn small-copy" style="color:var(--red);border-color:var(--red)" onclick="del(${idx})" title="Delete this application entirely (undoable)">🗑 Delete</button>
+        </div>
+      </div>
+      <table class="data-hist-table">
+        <thead><tr><th>Status</th><th>Date</th><th></th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+      ${dataHistAddRow(idx)}
+    </div>`;
+}
+
+function dataHistRow(entryIdx, hIdx, h) {
+  const dateVal = localDateKey(new Date(h.at));
+  const options = DATA_EDITABLE_STATUSES.map(s =>
+    `<option value="${s}" ${s === h.status ? 'selected' : ''}>${esc(statusLabel[s] || s)}</option>`).join('');
+  return `<tr>
+    <td><select class="data-hist-select" onchange="commitDataHistStatus(${entryIdx},${hIdx},this.value)">${options}</select></td>
+    <td><input type="date" class="hist-date-input" value="${dateVal}" onchange="commitDataHistDate(${entryIdx},${hIdx},this.value)"></td>
+    <td><button class="hist-clear-btn" title="Delete this record" onclick="deleteDataHistRow(${entryIdx},${hIdx})">✕</button></td>
+  </tr>`;
+}
+
+function dataHistAddRow(entryIdx) {
+  const todayVal = localDateKey(new Date());
+  const options = DATA_EDITABLE_STATUSES.map(s => `<option value="${s}">${esc(statusLabel[s] || s)}</option>`).join('');
+  return `<div class="data-hist-add">
+    <span style="font-size:11.5px;color:var(--muted)">Add a missing record:</span>
+    <select id="data-add-status-${entryIdx}" class="data-hist-select">${options}</select>
+    <input type="date" id="data-add-date-${entryIdx}" class="hist-date-input" value="${todayVal}">
+    <button class="ctrl-btn small-copy" onclick="addDataHistRow(${entryIdx})">+ Add</button>
+  </div>`;
+}
+
+function commitDataHistStatus(entryIdx, hIdx, newStatus) {
+  const e = entries[entryIdx];
+  if (!e || !e.history || !e.history[hIdx]) return;
+  e.history[hIdx].status = newStatus;
+  syncStatusFromHistory(e);
+  save(); render();
+  showToast('History record updated');
+}
+
+function commitDataHistDate(entryIdx, hIdx, rawDate) {
+  const e = entries[entryIdx];
+  if (!e || !e.history || !e.history[hIdx] || !rawDate) { render(); return; }
+  const newAt = new Date(rawDate + 'T12:00:00').getTime(); // noon local, avoids the UTC day-shift bug
+  if (Number.isNaN(newAt)) { render(); return; }
+  e.history[hIdx].at = newAt;
+  syncStatusFromHistory(e);
+  save(); render();
+  showToast('Date updated');
+}
+
+function deleteDataHistRow(entryIdx, hIdx) {
+  const e = entries[entryIdx];
+  if (!e || !e.history || !e.history[hIdx]) return;
+  if (e.history.length <= 1) {
+    showToast("Can't delete an entry's only history record — edit it instead, or delete the whole application.");
+    return;
+  }
+  e.history.splice(hIdx, 1);
+  syncStatusFromHistory(e);
+  save(); render();
+  showToast('History record deleted');
+}
+
+function addDataHistRow(entryIdx) {
+  const e = entries[entryIdx];
+  if (!e) return;
+  const statusSel = document.getElementById(`data-add-status-${entryIdx}`);
+  const dateInput = document.getElementById(`data-add-date-${entryIdx}`);
+  if (!statusSel || !dateInput || !dateInput.value) { showToast('Pick a date first'); return; }
+  const at = new Date(dateInput.value + 'T12:00:00').getTime();
+  if (Number.isNaN(at)) return;
+  ensureHistory(e);
+  e.history.push({ status: statusSel.value, at });
+  syncStatusFromHistory(e);
+  save(); render();
+  showToast('Added history record');
+}
+
+// ─── Heatmap ─────────────────────────────────────────────────────────────────
+// Build a Y-M-D key from LOCAL date parts (not toISOString, which converts to
+// UTC and can shift entries added late at night onto the wrong calendar day).
+function localDateKey(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+const HEATMAP_WEEKS = 16;
+const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function buildHeatmap() {
+  const grid = document.getElementById('heatmap-grid');
+  const dayLabelsEl = document.getElementById('heatmap-daylabels');
+  const monthsEl = document.getElementById('heatmap-months');
+  grid.innerHTML = '';
+  if (dayLabelsEl) dayLabelsEl.innerHTML = '';
+  if (monthsEl) monthsEl.innerHTML = '';
+
+  // build a map: local dateString -> count
+  // Count each entry on the day it actually became "Applied" (its first
+  // history record whose status isn't Plan), not the day it was added to
+  // the tracker. Entries still sitting in Plan haven't applied yet, so they
+  // don't contribute a square at all. Entries backfilled with only their
+  // current status (no explicit history) are counted on that single
+  // timestamp, same as everywhere else history is treated as authoritative.
+  const counts = {};
+  entries.forEach(e => {
+    ensureHistory(e);
+    const appliedEvent = e.history.find(h => h.status !== 'plan');
+    if (!appliedEvent) return;
+    const key = localDateKey(new Date(appliedEvent.at));
+    counts[key] = (counts[key] || 0) + 1;
+  });
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(today);
+  start.setDate(start.getDate() - (HEATMAP_WEEKS * 7 - 1));
+
+  // Group by week columns (Sun-Sat)
+  const weeks = [];
+  let week = [];
+  let d = new Date(start);
+  const startDow = d.getDay(); // 0=Sun
+  for (let i = 0; i < startDow; i++) week.push(null);
+  while (d <= today) {
+    week.push(new Date(d));
+    if (d.getDay() === 6) { weeks.push(week); week = []; }
+    d.setDate(d.getDate() + 1);
+  }
+  if (week.length) weeks.push(week);
+
+  // Day-of-week row labels (left rail), so activity can be read by day
+  if (dayLabelsEl) {
+    DAY_LABELS.forEach((label, i) => {
+      const l = document.createElement('div');
+      l.className = 'heatmap-daylabel';
+      l.textContent = (i % 2 === 1) ? label : ''; // Mon, Wed, Fri, Sun style spacing
+      dayLabelsEl.appendChild(l);
+    });
+  }
+
+  // Month labels above the columns where a new month begins
+  if (monthsEl) {
+    let lastMonth = null;
+    weeks.forEach(wk => {
+      const firstReal = wk.find(day => day);
+      const label = document.createElement('div');
+      label.className = 'heatmap-monthlabel';
+      if (firstReal) {
+        const m = firstReal.getMonth();
+        if (m !== lastMonth) {
+          label.textContent = firstReal.toLocaleDateString('en-US', { month: 'short' });
+          lastMonth = m;
+        }
+      }
+      monthsEl.appendChild(label);
+    });
+  }
+
+  weeks.forEach(wk => {
+    const col = document.createElement('div');
+    col.className = 'heatmap-col';
+    wk.forEach(day => {
+      const cell = document.createElement('div');
+      cell.className = 'heatmap-cell';
+      if (!day) {
+        cell.style.visibility = 'hidden';
+        cell.setAttribute('data-count', '0');
+        col.appendChild(cell);
+        return;
+      }
+      const key = localDateKey(day);
+      const count = counts[key] || 0;
+      cell.setAttribute('data-count', count);
+      if (count >= 4) cell.setAttribute('data-count-high', '1');
+
+      // tooltip
+      const label = day.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' });
+      const appWord = count === 1 ? 'app' : 'apps';
+      cell.title = count > 0 ? `${count} ${appWord} on ${label}` : `No apps on ${label}`;
+      cell.addEventListener('mouseenter', (ev) => showHeatmapTooltip(ev, cell.title));
+      cell.addEventListener('mousemove', (ev) => moveHeatmapTooltip(ev));
+      cell.addEventListener('mouseleave', hideHeatmapTooltip);
+
+      col.appendChild(cell);
+    });
+    grid.appendChild(col);
+  });
+
+  buildTrendChart();
+}
+
+// ─── Applications-over-time trend chart ─────────────────────────────────────
+// Rounds a value up to a "nice" axis maximum (1/2/5 × a power of ten) so the
+// gridlines land on readable numbers instead of arbitrary data maxima.
+function niceCeil(n) {
+  if (n <= 0) return 1;
+  if (n <= 5) return Math.ceil(n);
+  const magnitude = Math.pow(10, Math.floor(Math.log10(n)));
+  const residual = n / magnitude;
+  let niceResidual;
+  if (residual <= 1) niceResidual = 1;
+  else if (residual <= 2) niceResidual = 2;
+  else if (residual <= 5) niceResidual = 5;
+  else niceResidual = 10;
+  return niceResidual * magnitude;
+}
+
+let trendChartState = null; // cached scales/points so the hover handler can hit-test without rebuilding
+
+function buildTrendChart() {
+  const wrap = document.getElementById('trend-chart');
+  if (!wrap) return;
+
+  // Same fix as the heatmap: count each entry on the day it actually became
+  // Applied (its first history record whose status isn't Plan), not the day
+  // it was logged into the tracker. Entries still in Plan haven't applied
+  // yet and shouldn't move this line.
+  entries.forEach(ensureHistory);
+  const withDates = entries
+    .map(e => e.history.find(h => h.status !== 'plan'))
+    .filter(Boolean)
+    .map(h => new Date(h.at))
+    .sort((a, b) => a - b);
+  if (withDates.length === 0) {
+    trendChartState = null;
+    wrap.innerHTML = '<div class="trend-empty">Your cumulative applications will chart here once you add some.</div>';
+    return;
+  }
+
+  const counts = {};
+  withDates.forEach(dt => {
+    const key = localDateKey(dt);
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  const days = Object.keys(counts).sort();
+  let running = 0;
+  const points = days.map(k => { running += counts[k]; return { date: k, dayCount: counts[k], total: running }; });
+
+  const W = 480, H = 140, padL = 26, padR = 6, padT = 14, padB = 6;
+  const maxY = points[points.length - 1].total;
+  const goal = parseInt(document.getElementById('goal-input')?.value, 10) || 0;
+  const domainMax = niceCeil(Math.max(maxY, goal));
+  const n = points.length;
+
+  // X is scaled by actual elapsed time between the first and last applied date,
+  // not by index — otherwise a 2-week gap with no activity looks identical to
+  // a single day, and the line misrepresents how spread out the applying was.
+  const times = points.map(p => new Date(p.date + 'T00:00:00').getTime());
+  const minT = times[0], maxT = times[n - 1];
+  const plotW = W - padL - padR;
+  const x = i => (n === 1 || maxT === minT) ? padL + plotW / 2 : padL + ((times[i] - minT) / (maxT - minT)) * plotW;
+  const y = v => H - padB - (domainMax === 0 ? 0 : (v / domainMax) * (H - padT - padB));
+
+  const linePts = points.map((p, i) => `${x(i).toFixed(1)},${y(p.total).toFixed(1)}`).join(' ');
+  const areaPts = `${padL},${H - padB} ${linePts} ${x(n - 1).toFixed(1)},${H - padB}`;
+
+  const firstLabel = new Date(points[0].date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const lastLabel = new Date(points[n - 1].date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  // Y-axis gridlines at 0 / half / max, deduped for small domains.
+  const yTicks = Array.from(new Set([0, Math.round(domainMax / 2), domainMax]));
+  const gridHtml = yTicks.map(t => `
+      <line class="trend-gridline" x1="${padL}" y1="${y(t).toFixed(1)}" x2="${W - padR}" y2="${y(t).toFixed(1)}"></line>
+      <text class="trend-gridlabel" x="2" y="${(y(t) + 3).toFixed(1)}">${t}</text>`).join('');
+
+  // Dashed reference line at the current goal, so the chart reads against a target, not in isolation.
+  // Drawn AFTER the area/line/endpoint below so the semi-transparent fill never paints over it.
+  const goalHtml = (goal > 0) ? `
+      <line class="trend-goal-line" x1="${padL}" y1="${y(goal).toFixed(1)}" x2="${W - padR}" y2="${y(goal).toFixed(1)}"></line>
+      <text class="trend-goal-label" x="${W - padR}" y="${(y(goal) - 4).toFixed(1)}" text-anchor="end">Goal ${goal}</text>` : '';
+
+  const lastPt = points[n - 1];
+  const endpointHtml = `<circle class="trend-endpoint" cx="${x(n - 1).toFixed(1)}" cy="${y(lastPt.total).toFixed(1)}" r="3.5"></circle>`;
+
+  trendChartState = { points, x, y, times, minT, maxT, W, H, padL, padR };
+
+  wrap.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" class="trend-svg" id="trend-svg" preserveAspectRatio="none"
+         onmousemove="onTrendHover(event)" onmouseleave="onTrendLeave()">
+      ${gridHtml}
+      <polygon points="${areaPts}" class="trend-area"></polygon>
+      <polyline points="${linePts}" class="trend-line"></polyline>
+      ${endpointHtml}
+      ${goalHtml}
+      <line id="trend-hover-line" class="trend-hover-line" x1="0" y1="${padT}" x2="0" y2="${H - padB}" style="display:none"></line>
+      <circle id="trend-hover-dot" class="trend-hover-dot" r="4" style="display:none"></circle>
+    </svg>
+    <div class="trend-axis"><span>${firstLabel}</span><span class="trend-total">${maxY} total applications</span><span>${lastLabel}</span></div>
+  `;
+}
+
+function onTrendHover(ev) {
+  if (!trendChartState) return;
+  const { points, x, y, times, minT, maxT, W, padL, padR } = trendChartState;
+  const svg = document.getElementById('trend-svg');
+  if (!svg) return;
+  const rect = svg.getBoundingClientRect();
+  if (rect.width === 0) return;
+  const fracX = (ev.clientX - rect.left) / rect.width;
+  const vbX = fracX * W;
+  const plotW = W - padL - padR;
+  const rel = Math.min(1, Math.max(0, (vbX - padL) / plotW));
+  const n = points.length;
+
+  // Points are spaced by real elapsed time now (not by index), so map the
+  // cursor to a target time and find the point whose time is closest to it,
+  // rather than assuming even spacing.
+  const targetT = minT + rel * (maxT - minT);
+  let idx = 0, best = Infinity;
+  for (let i = 0; i < n; i++) {
+    const d = Math.abs(times[i] - targetT);
+    if (d < best) { best = d; idx = i; }
+  }
+  const p = points[idx];
+  const cx = x(idx), cy = y(p.total);
+
+  const dot = document.getElementById('trend-hover-dot');
+  const line = document.getElementById('trend-hover-line');
+  if (dot) { dot.setAttribute('cx', cx.toFixed(1)); dot.setAttribute('cy', cy.toFixed(1)); dot.style.display = 'block'; }
+  if (line) { line.setAttribute('x1', cx.toFixed(1)); line.setAttribute('x2', cx.toFixed(1)); line.style.display = 'block'; }
+
+  const label = new Date(p.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  showHeatmapTooltip(ev, `${label} — +${p.dayCount} that day · ${p.total} total`);
+}
+
+function onTrendLeave() {
+  hideHeatmapTooltip();
+  const dot = document.getElementById('trend-hover-dot');
+  const line = document.getElementById('trend-hover-line');
+  if (dot) dot.style.display = 'none';
+  if (line) line.style.display = 'none';
+}
+
+function showHeatmapTooltip(ev, text) {
+  const t = document.getElementById('heatmap-tooltip');
+  t.textContent = text;
+  t.style.display = 'block';
+  moveHeatmapTooltip(ev);
+}
+function moveHeatmapTooltip(ev) {
+  const t = document.getElementById('heatmap-tooltip');
+  t.style.left = (ev.clientX + 12) + 'px';
+  t.style.top = (ev.clientY - 28) + 'px';
+}
+function hideHeatmapTooltip() {
+  document.getElementById('heatmap-tooltip').style.display = 'none';
+}
+
+// ─── View toggle ──────────────────────────────────────────────────────────────
+function setView(v) {
+  currentView = v;
+  document.getElementById('table-view').style.display = v === 'table' ? '' : 'none';
+  document.getElementById('kanban-view').classList.toggle('active', v === 'kanban');
+  document.getElementById('sankey-view').classList.toggle('active', v === 'sankey');
+  document.getElementById('data-view').classList.toggle('active', v === 'data');
+  document.getElementById('btn-table').classList.toggle('active', v === 'table');
+  document.getElementById('btn-kanban').classList.toggle('active', v === 'kanban');
+  document.getElementById('btn-sankey').classList.toggle('active', v === 'sankey');
+  document.getElementById('btn-data').classList.toggle('active', v === 'data');
+  if (v === 'kanban') renderKanban();
+  if (v === 'sankey') renderSankey();
+  if (v === 'data') renderDataView();
+}
+
+// ─── Kanban ───────────────────────────────────────────────────────────────────
+function renderKanban() {
+  const cols = ['plan','applied','interview','ghosted','offer','rejected'];
+  cols.forEach(s => {
+    document.getElementById('k-' + s).innerHTML = '';
+    document.getElementById('k-count-' + s).textContent = 0;
+  });
+  const companyCounts = {};
+  entries.forEach(e => {
+    const key = (e.company || '').trim().toLowerCase();
+    if (key) companyCounts[key] = (companyCounts[key] || 0) + 1;
+  });
+  const filtered = getFiltered();
+  filtered.forEach(e => {
+    const idx = entries.indexOf(e);
+    const card = document.createElement('div');
+    card.className = 'kanban-card';
+    card.draggable = true;
+    card.dataset.idx = idx;
+    // Keyboard-operable: focusable card + Left/Right arrow keys move it
+    // between adjacent columns, as a trackpad/mouse-free fallback for drag.
+    card.tabIndex = 0;
+    card.setAttribute('role', 'group');
+    card.setAttribute('aria-label', (e.company || 'Untitled') + (e.role ? ' – ' + e.role : '') + ', status ' + (statusLabel[e.status] || e.status));
+    card.innerHTML = `
+      <button class="kanban-card-edit-btn" title="Edit" draggable="false" onmousedown="event.stopPropagation()" onclick="event.stopPropagation(); editEntry(${idx})">✎</button>
+      <button class="kanban-card-dup-btn" title="Copy as new (pre-fills company, term & priority for another role there)" draggable="false" onmousedown="event.stopPropagation()" onclick="event.stopPropagation(); duplicateEntry(${idx})">⧉</button>
+      <div class="kanban-card-company">${e.company}</div>
+      ${e.role ? `<div class="kanban-card-role">${e.role}</div>` : ''}
+      <div class="kanban-card-meta">
+        ${e.term ? `<span class="term-badge ${termInfo(e).cls}">${termInfo(e).text}</span>` : ''}
+        ${e.priority ? `<span class="pri-badge pri-${e.priority}">${e.priority === 'high' ? 'High' : e.priority === 'med' ? 'Med' : 'Low'}</span>` : ''}
+        ${e.deadline ? `<span class="deadline-text ${deadlineDisplay(e.deadline)?.cls || ''}">${deadlineDisplay(e.deadline)?.text || ''}</span>` : ''}
+      </div>
+      ${tagChipsHtml(e)}
+      ${referralBadgeHtml(e)}
+      ${interviewStageSelHtml(e, idx)}
+      ${milestoneChipsHtml(e, idx)}
+      <select class="kanban-card-move-sel" title="Move to a different status (keyboard/trackpad-friendly alternative to drag-and-drop)"
+              onmousedown="event.stopPropagation()" onclick="event.stopPropagation()"
+              onchange="event.stopPropagation(); changeStatus(${idx}, this.value)">
+        ${cols.map(s => `<option value="${s}" ${e.status === s ? 'selected' : ''}>Move to: ${statusLabel[s]}</option>`).join('')}
+      </select>
+    `;
+    card.addEventListener('dragstart', (ev) => {
+      dragSrcIdx = idx;
+      card.classList.add('dragging');
+      ev.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', () => card.classList.remove('dragging'));
+    card.addEventListener('keydown', (ev) => onKanbanCardKeydown(ev, idx, e.status, cols));
+    document.getElementById('k-' + e.status).appendChild(card);
+
+    const cnt = document.getElementById('k-count-' + e.status);
+    cnt.textContent = parseInt(cnt.textContent) + 1;
+  });
+}
+
+// Left/Right arrow moves the focused card to the previous/next Kanban column
+// (in the same left-to-right order as the board); Enter opens it for editing.
+// This plus the "Move to:" dropdown above make the board fully operable
+// without drag-and-drop, for trackpad/tablet/keyboard-only use.
+function onKanbanCardKeydown(ev, idx, currentStatus, cols) {
+  const pos = cols.indexOf(currentStatus);
+  if (ev.key === 'ArrowRight' && pos < cols.length - 1) {
+    ev.preventDefault();
+    changeStatus(idx, cols[pos + 1]);
+    showToast('Moved to ' + statusLabel[cols[pos + 1]]);
+  } else if (ev.key === 'ArrowLeft' && pos > 0) {
+    ev.preventDefault();
+    changeStatus(idx, cols[pos - 1]);
+    showToast('Moved to ' + statusLabel[cols[pos - 1]]);
+  } else if (ev.key === 'Enter') {
+    ev.preventDefault();
+    editEntry(idx);
+  } else if (ev.key === 'Delete' || ev.key === 'Backspace') {
+    ev.preventDefault();
+    del(idx);
+  }
+}
+
+function onDragOver(ev) {
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  ev.currentTarget.closest('.kanban-col').classList.add('drag-over');
+}
+function onDragLeave(ev) {
+  ev.currentTarget.closest('.kanban-col').classList.remove('drag-over');
+}
+// ─── Flow (Sankey) view ─────────────────────────────────────────────────────
+// Built by hand in SVG (no charting library): each entry's status-history is
+// collapsed into a sequence of distinct stages, and every forward transition
+// (a stage move to a later column) is tallied into an edge. Lateral/backward
+// moves (corrections, accidental drags) are skipped so the diagram reflects
+// genuine progress through the pipeline rather than every click.
+// Four columns: Planning -> Applied -> Interview -> Ghosted/Rejected/Offer/Still Active.
+// "active" is a synthetic status (never stored on an entry) standing in for
+// "hasn't reached a resolved outcome yet" - it lets Applied/Interview
+// opportunities that are just sitting there show up as a ribbon instead of
+// a dead-end bar, without pretending they've been Rejected/Ghosted/Offered.
+const SANKEY_COL = { plan: 1, applied: 2, interview: 3, ghosted: 4, rejected: 4, offer: 4, active: 4 };
+const SANKEY_ORDER = { 1: ['plan'], 2: ['applied'], 3: ['interview'], 4: ['rejected', 'offer', 'ghosted', 'active'] };
+const SANKEY_COLOR = {
+  plan: 'var(--muted)', applied: 'var(--blue)', interview: 'var(--amber)',
+  ghosted: 'var(--purple)', offer: 'var(--accent)', rejected: 'var(--red)', active: 'var(--muted)'
+};
+
+function renderSankey() {
+  const wrap = document.getElementById('sankey-svg-wrap');
+  const emptyEl = document.getElementById('sankey-empty');
+  if (!entries.length) { wrap.innerHTML = ''; emptyEl.style.display = 'block'; return; }
+
+  // Build edges (applied -> interview -> ghosted/rejected/offer, forward-only)
+  // and track every stage each opportunity ever reached, so an entry that's
+  // still sitting in Applied (no onward move yet) still counts toward the
+  // Applied bar instead of only being counted once it moves on.
+  //
+  // Raw history can contain detours that were later corrected (e.g. dragged
+  // to Interview by accident, then dragged back to Applied). We collapse each
+  // entry's history down to the monotonic path that actually leads to its
+  // current status, popping off any earlier stop that a later status
+  // supersedes or reverts, so a corrected mistake doesn't leave a phantom
+  // stage or ribbon behind. Moving back to an untracked stage (e.g. Planning)
+  // clears all tracked progress, since it means the opportunity isn't
+  // considered applied anymore.
+  //
+  // Some entries only ever have a single history point (their current status) -
+  // e.g. older entries backfilled before status-history tracking existed. We
+  // can't know their exact path, but we do know they must have applied first,
+  // so we assume a direct Applied -> <status> hop for those rather than
+  // leaving them with a bar and no ribbon.
+  const edgeMap = new Map();
+  const reached = {};
+  entries.forEach(e => {
+    ensureHistory(e);
+    const rawSeq = [];
+    e.history.forEach(h => { if (!rawSeq.length || rawSeq[rawSeq.length - 1] !== h.status) rawSeq.push(h.status); });
+
+    let seq = [];
+    rawSeq.forEach(s => {
+      const col = SANKEY_COL[s];
+      if (col === undefined) { seq = []; return; }
+      while (seq.length && SANKEY_COL[seq[seq.length - 1]] >= col) seq.pop();
+      seq.push(s);
+    });
+    if (seq.length === 1 && SANKEY_COL[seq[0]] > 2) seq = ['applied', seq[0]];
+
+    // Still sitting in Applied or Interview with nothing since? Route it into
+    // the synthetic "Still Active" bucket so it reads as an open ribbon
+    // rather than a bar with no outgoing flow.
+    const lastStage = seq[seq.length - 1];
+    if (lastStage === 'applied' || lastStage === 'interview') seq = seq.concat('active');
+
+    const seen = new Set();
+    seq.forEach(s => {
+      if (SANKEY_COL[s] === undefined || seen.has(s)) return;
+      seen.add(s);
+      reached[s] = (reached[s] || 0) + 1;
+    });
+
+    for (let i = 0; i < seq.length - 1; i++) {
+      const a = seq[i], b = seq[i + 1];
+      const ca = SANKEY_COL[a];
+      const cb = SANKEY_COL[b];
+      if (cb === undefined || ca === undefined || cb <= ca) continue;
+      const key = a + '>' + b;
+      edgeMap.set(key, (edgeMap.get(key) || 0) + 1);
+    }
+  });
+  if (!Object.keys(reached).length) { wrap.innerHTML = ''; emptyEl.style.display = 'block'; return; }
+  emptyEl.style.display = 'none';
+
+  const edges = Array.from(edgeMap.entries()).map(([key, value]) => {
+    const [source, target] = key.split('>');
+    return { source, target, value };
+  });
+
+  const columns = [1, 2, 3, 4];
+  const colNodes = columns.map(c => {
+    const statuses = SANKEY_ORDER[c];
+    return statuses
+      .filter(s => (reached[s] || 0) > 0)
+      .map(s => ({ status: s, value: reached[s] }));
+  });
+
+  const W = 880, H = 500;
+  const padL = 44, padR = 44, padT = 26, padB = 16;
+  const nodeW = 14, nodeGap = 20;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const numCols = columns.length;
+
+  const maxColTotal = Math.max(1, ...colNodes.map(list => list.reduce((s, n) => s + n.value, 0)));
+  const maxNodesInCol = Math.max(1, ...colNodes.map(list => list.length));
+  const scale = (plotH - (maxNodesInCol - 1) * nodeGap) / maxColTotal;
+
+  const nodePos = {};
+  colNodes.forEach((list, ci) => {
+    const nodesH = list.reduce((s, n) => s + Math.max(n.value * scale, 2), 0);
+    // Columns with more than one node spread out to use the full plot height
+    // (large gaps between Rejected/Offer/Ghosted) instead of clustering
+    // tightly around the vertical center - that clustering was forcing their
+    // incoming ribbons to converge into a cramped space and cross each other.
+    // Single-node columns (Plan/Applied/Interview) stay centered as before.
+    const gap = list.length > 1 ? Math.max(0, (plotH - nodesH) / (list.length - 1)) : 0;
+    const totalH = nodesH + gap * Math.max(0, list.length - 1);
+    let y = padT + (plotH - totalH) / 2;
+    const x = padL + ci * (plotW - nodeW) / (numCols - 1);
+    list.forEach(n => {
+      const h = Math.max(n.value * scale, 2);
+      nodePos[n.status] = { x, y, h, col: ci, value: n.value };
+      y += h + gap;
+    });
+  });
+
+  // Stable stacking order so repeated ribbons at a node don't jump around
+  // *and* so ribbons don't needlessly cross each other.
+  // Applied has four possible outgoing branches; stack them to mirror the
+  // final column's top-to-bottom order (Rejected, then Interview, then Offer,
+  // then Ghosted). Interview itself sits at rank 1 in that bundle, so its own
+  // outgoing ribbons (to Offer/Ghosted/Rejected) inherit rank 1 rather than
+  // being compared using Interview's node position - comparing raw node
+  // positions was the bug causing overlap: Applied is one tall bar, so its
+  // Ghosted branch (which exits near the *bottom* of that bar) was being
+  // compared using the bar's *top* y-coordinate, making it sort as if it
+  // exited near the top and crossing straight through Interview's ribbons.
+  const BRANCH_RANK = { rejected: 0, interview: 1, offer: 2, ghosted: 3, active: 4 };
+  const edgeRank = ({ source, target }) => {
+    if (source === 'applied') return BRANCH_RANK[target] ?? 0;
+    if (source === 'interview') return 1 + (BRANCH_RANK[target] ?? 0) * 0.01;
+    return -1;
+  };
+  edges.sort((a, b) => edgeRank(a) - edgeRank(b));
+
+  // Ribbons are centered on each node rather than stacked from the top: work
+  // out how thick the full outgoing bundle (and separately, the incoming
+  // bundle) is at every node, then start each cursor half that thickness
+  // above the node's vertical middle so the bundle straddles the center and
+  // branches outward instead of hugging the top edge.
+  const linkThickness = edges.map(({ value }) => Math.max(value * scale, 1.2));
+  const outTotal = {}, inTotal = {};
+  edges.forEach(({ source, target }, i) => {
+    outTotal[source] = (outTotal[source] || 0) + linkThickness[i];
+    inTotal[target] = (inTotal[target] || 0) + linkThickness[i];
+  });
+  const outCursor = {}, inCursor = {};
+  Object.keys(nodePos).forEach(k => {
+    const mid = nodePos[k].y + nodePos[k].h / 2;
+    outCursor[k] = mid - (outTotal[k] || 0) / 2;
+    inCursor[k] = mid - (inTotal[k] || 0) / 2;
+  });
+
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  let linksSvg = '';
+  edges.forEach(({ source, target, value }, i) => {
+    const sp = nodePos[source], tp = nodePos[target];
+    if (!sp || !tp) return;
+    const thickness = linkThickness[i];
+    const sy0 = outCursor[source], sy1 = sy0 + thickness;
+    const ty0 = inCursor[target], ty1 = ty0 + thickness;
+    outCursor[source] += thickness;
+    inCursor[target] += thickness;
+
+    const x1 = sp.x + nodeW, x2 = tp.x;
+    const midX = (x1 + x2) / 2;
+    const color = SANKEY_COLOR[target] || 'var(--muted)';
+    const isActive = target === 'active';
+    const d = `M ${x1},${sy0.toFixed(1)} C ${midX.toFixed(1)},${sy0.toFixed(1)} ${midX.toFixed(1)},${ty0.toFixed(1)} ${x2},${ty0.toFixed(1)} `
+            + `L ${x2},${ty1.toFixed(1)} C ${midX.toFixed(1)},${ty1.toFixed(1)} ${midX.toFixed(1)},${sy1.toFixed(1)} ${x1},${sy1.toFixed(1)} Z`;
+    const sourceLabel = statusLabel[source] || source;
+    const targetLabel = statusLabel[target] || target;
+    // Ribbons into "Still Active" are dashed and faded relative to real
+    // outcomes (Rejected/Offer/Ghosted) - this hasn't resolved yet, so it
+    // shouldn't visually read as one of the settled results.
+    const fillOpacity = isActive ? '0.14' : '0.30';
+    const strokeOpacity = isActive ? '0.5' : '0.55';
+    const dashAttr = isActive ? ' stroke-dasharray="4,3"' : '';
+    const title = isActive
+      ? `${esc(sourceLabel)} \u2192 Still open: ${value} opportunit${value === 1 ? 'y' : 'ies'} awaiting a response`
+      : `${esc(sourceLabel)} \u2192 ${esc(targetLabel)}: ${value} opportunit${value === 1 ? 'y' : 'ies'}`;
+    linksSvg += `<path class="sankey-link" d="${d}" fill="${color}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-opacity="${strokeOpacity}" stroke-width="0.5"${dashAttr}>`
+              + `<title>${esc(title)}</title></path>`;
+  });
+
+  let nodesSvg = '';
+  Object.entries(nodePos).forEach(([status, p]) => {
+    const color = SANKEY_COLOR[status] || 'var(--muted)';
+    const label = statusLabel[status] || status;
+    const isActive = status === 'active';
+    const cx = p.x + nodeW / 2;
+    // Left column labels left-align and right column labels right-align (from
+    // the node edge outward) so long labels don't run past the SVG bounds;
+    // interior columns stay centered above the bar.
+    const anchor = p.col === 0 ? 'start' : (p.col === numCols - 1 ? 'end' : 'middle');
+    const labelX = p.col === 0 ? p.x : (p.col === numCols - 1 ? p.x + nodeW : cx);
+    // "Still Active" gets a dashed outline instead of a solid fill - it's a
+    // holding bucket for open opportunities, not a resolved outcome like its
+    // column-mates (Rejected/Offer/Ghosted), so it shouldn't look like one.
+    const rectAttrs = isActive
+      ? `fill="none" stroke="${color}" stroke-width="1.5" stroke-dasharray="3,2"`
+      : `fill="${color}"`;
+    const labelSuffix = isActive ? ' (open)' : '';
+    nodesSvg += `<rect x="${p.x}" y="${p.y.toFixed(1)}" width="${nodeW}" height="${p.h.toFixed(1)}" rx="3" ${rectAttrs}>`
+              + `<title>${esc(label)}: ${p.value}</title></rect>`
+              + `<text class="sankey-node-label" x="${labelX}" y="${(p.y - 8).toFixed(1)}" text-anchor="${anchor}">${esc(label)}${labelSuffix} \u00b7 ${p.value}</text>`;
+  });
+
+  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:640px;max-width:100%;height:auto;display:block">${linksSvg}${nodesSvg}</svg>`;
+}
+
+
+function onDrop(ev, newStatus) {
+  ev.preventDefault();
+  ev.currentTarget.closest('.kanban-col').classList.remove('drag-over');
+  if (dragSrcIdx === null) return;
+  const prev = entries[dragSrcIdx].status;
+  if (prev === newStatus) return;
+  entries[dragSrcIdx].status = newStatus;
+  recordHistory(entries[dragSrcIdx], newStatus);
+  save();
+  updateStats();
+  buildHeatmap();
+  renderKanban();
+  onStatusChange(dragSrcIdx, newStatus, prev);
+  dragSrcIdx = null;
+}
+
+// ─── Render table ─────────────────────────────────────────────────────────────
+function render() {
+  updateStats();
+  renderInsights();
+  buildHeatmap();
+  populateCompanyFilter();
+  renderBinderRail();
+  if (currentView === 'kanban') { renderKanban(); return; }
+  if (currentView === 'sankey') { renderSankey(); return; }
+  if (currentView === 'data') { renderDataView(); return; }
+  const filtered = getFiltered();
+  const tbody = document.getElementById('tbl');
+  document.getElementById('empty-state').style.display = filtered.length === 0 ? 'block' : 'none';
+
+  tbody.innerHTML = filtered.map((e) => {
+    const idx = entries.indexOf(e);
+    const dl = deadlineDisplay(e.deadline);
+    const dlHtml = dl
+      ? `<span class="deadline-text ${dl.cls}">${dl.text}</span>`
+      : `<span class="deadline-none">No deadline</span>`;
+    const priHtml = e.priority
+      ? `<span class="pri-badge pri-${e.priority}">${e.priority === 'high' ? 'High' : e.priority === 'med' ? 'Med' : 'Low'}</span>`
+      : '';
+    const tInfo = termInfo(e);
+    const termHtml = tInfo
+      ? `<span class="term-badge ${tInfo.cls}">${tInfo.text}</span>`
+      : `<span style="color:var(--muted);font-size:12px">—</span>`;
+    const noteIcon = e.notes ? '📝' : '＋';
+    const hasNotes = openNotes.has(idx);
+    const linkHtml = e.link
+      ? `<a href="${e.link}" target="_blank" style="color:var(--accent);font-size:13px;text-decoration:none;border-bottom:1px solid var(--accent-mid)">Open ↗</a>`
+      : `<span style="color:var(--muted);font-size:12px">—</span>`;
+    const isChecked = selectedRows.has(idx);
+    const rowClass = binderRowClass(e);
+
+    const mainRow = `<tr data-idx="${idx}" class="${rowClass}">
+      <td><input type="checkbox" class="row-check" ${isChecked ? 'checked' : ''} onchange="toggleRow(${idx}, this.checked)"></td>
+      <td>
+        <div class="company-name">${e.company}</div>
+        ${e.role ? `<div class="company-role">${e.role}</div>` : ''}
+        ${tagChipsHtml(e)}
+      </td>
+      <td>${termHtml}</td>
+      <td>${priHtml}</td>
+      <td>${dlHtml}</td>
+      <td>
+        <select class="status-sel" onchange="changeStatus(${idx}, this.value)">
+          ${['plan','applied','interview','ghosted','offer','rejected'].map(s =>
+            `<option value="${s}" ${e.status === s ? 'selected' : ''}>${statusLabel[s]}</option>`
+          ).join('')}
+        </select>
+        ${interviewStageSelHtml(e, idx)}
+        ${milestoneChipsHtml(e, idx)}
+      </td>
+      <td>
+        <button class="icon-btn note-btn" title="Notes" onclick="toggleNotes(${idx})">${noteIcon}</button>
+        ${e.notes ? `<span class="notes-preview">${e.notes}</span>` : ''}
+        ${referralBadgeHtml(e)}
+        ${resumeVersionHtml(e)}
+      </td>
+      <td>${linkHtml}</td>
+      <td>
+        <button class="icon-btn" title="Edit" onclick="editEntry(${idx})">✎</button>
+        <button class="icon-btn note-btn" title="Copy as new (pre-fills company, term & priority for another role there)" onclick="duplicateEntry(${idx})">⧉</button>
+        <button class="icon-btn" title="Delete" onclick="del(${idx})">✕</button>
+      </td>
+    </tr>`;
+
+    const notesRow = hasNotes ? `<tr class="notes-row ${rowClass}"><td colspan="9">
+      <div class="notes-box">
+        <textarea style="width:100%;border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--accent);resize:none;outline:none;min-height:50px" 
+          placeholder="Add notes, contacts, tips…"
+          onchange="saveNote(${idx}, this.value)">${e.notes || ''}</textarea>
+      </div>
+    </td></tr>` : '';
+
+    return mainRow + notesRow;
+  }).join('');
+
+  syncCheckAll();
+  updateBulkBar();
+}
+
+// ─── Bulk select ──────────────────────────────────────────────────────────────
+function toggleRow(idx, checked) {
+  if (checked) selectedRows.add(idx);
+  else selectedRows.delete(idx);
+  syncCheckAll();
+  updateBulkBar();
+}
+
+function toggleSelectAll(checked) {
+  const filtered = getFiltered();
+  filtered.forEach(e => {
+    const idx = entries.indexOf(e);
+    if (checked) selectedRows.add(idx);
+    else selectedRows.delete(idx);
+  });
+  render();
+}
+
+function syncCheckAll() {
+  const filtered = getFiltered();
+  const allChecked = filtered.length > 0 && filtered.every(e => selectedRows.has(entries.indexOf(e)));
+  document.getElementById('check-all').checked = allChecked;
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById('bulk-bar');
+  const n = selectedRows.size;
+  document.getElementById('bulk-count-label').textContent = n + ' selected';
+  bar.classList.toggle('visible', n > 0);
+}
+
+function clearSelection() {
+  selectedRows.clear();
+  render();
+}
+
+function applyBulkStatus() {
+  const newStatus = document.getElementById('bulk-status-sel').value;
+  let changed = 0;
+  selectedRows.forEach(idx => {
+    const prev = entries[idx].status;
+    entries[idx].status = newStatus;
+    if (newStatus !== prev) { changed++; recordHistory(entries[idx], newStatus); }
+  });
+  save();
+  if (newStatus === 'rejected' && changed > 0) showRejectionToast();
+  else if (newStatus === 'offer' && changed > 0) { confetti(); showToast('🎉 Offer received! Congrats!'); }
+  else showToast(`Updated ${changed} application${changed !== 1 ? 's' : ''} to ${statusLabel[newStatus]}`);
+  clearSelection();
+}
+
+// ─── Bulk deadline ─────────────────────────────────────────────────────────────
+// Lets several selected opportunities (e.g. every role at the same fair, or a
+// batch pasted from one company) share a single deadline in one action instead
+// of editing each row individually.
+function openBulkDeadlineModal() {
+  if (selectedRows.size === 0) { showToast('Select entries first, then set a shared deadline'); return; }
+  document.getElementById('bulk-deadline-sub').textContent = `Applies to ${selectedRows.size} selected`;
+  document.getElementById('bulk-deadline-input').value = '';
+  document.getElementById('bulk-deadline-modal').classList.add('open');
+  setTimeout(() => document.getElementById('bulk-deadline-input').focus(), 100);
+}
+function closeBulkDeadlineModal(ev) {
+  if (ev && ev.target !== document.getElementById('bulk-deadline-modal')) return;
+  document.getElementById('bulk-deadline-modal').classList.remove('open');
+}
+function applyBulkDeadline() {
+  const val = document.getElementById('bulk-deadline-input').value;
+  if (!val) { showToast('Pick a date first'); return; }
+  let count = 0;
+  selectedRows.forEach(idx => {
+    if (entries[idx]) { entries[idx].deadline = val; count++; }
+  });
+  save(); render();
+  closeBulkDeadlineModal();
+  showToast(`Set deadline for ${count} application${count !== 1 ? 's' : ''}`);
+}
+
+// ─── Bulk delete ────────────────────────────────────────────────────────────────
+function bulkDeleteSelected() {
+  if (selectedRows.size === 0) return;
+  const n = selectedRows.size;
+  preDeleteSnapshot = entries.slice();
+  const idxs = Array.from(selectedRows).sort((a, b) => b - a); // delete high-to-low so indices stay valid
+  idxs.forEach(i => {
+    openNotes.delete(i);
+    entries.splice(i, 1);
+  });
+  selectedRows.clear();
+  save(); render();
+  showUndoToast(`Removed ${n} application${n !== 1 ? 's' : ''}`);
+}
+
+// ─── Company autocomplete ────────────────────────────────────────────────────
+// Curated for aerospace/launch-vehicle-heavy application cycles, plus anything
+// you've already tracked, so mass-applying to rocket companies is faster to log.
+const LAUNCH_VEHICLE_COMPANIES = [
+  'SpaceX', 'Blue Origin', 'Rocket Lab', 'United Launch Alliance (ULA)',
+  'Relativity Space', 'Firefly Aerospace', 'ABL Space Systems', 'Astra Space',
+  'Stoke Space', 'Sierra Space', 'Virgin Galactic', 'Virgin Orbit',
+  'Vector Launch', 'Phantom Space', 'Ursa Major', 'Radian Aerospace',
+  'ArianeGroup', 'Rocket Factory Augsburg', 'Isar Aerospace', 'Orbex',
+  'Skyrora', 'PLD Space', 'Latitude', 'HyImpulse Technologies',
+  'Gilmour Space Technologies', 'Interstellar Technologies',
+];
+const ADJACENT_SPACE_COMPANIES = [
+  'Varda Space Industries', 'Redwire Space', 'Axiom Space', 'Astroscale',
+  'Blue Canyon Technologies', 'Terran Orbital', 'Maxar Technologies',
+  'Anduril Industries', 'Northrop Grumman', 'Lockheed Martin', 'Boeing',
+  'L3Harris', 'Aerojet Rocketdyne', 'Sierra Nevada Corporation',
+  'Made In Space (Redwire)', 'Impulse Space', 'Momentus',
+];
+const AEROSPACE_COMPANIES = [...LAUNCH_VEHICLE_COMPANIES, ...ADJACENT_SPACE_COMPANIES];
+
+function getCompanySource() {
+  const tracked = entries.map(e => e.company).filter(Boolean);
+  return Array.from(new Set([...AEROSPACE_COMPANIES, ...tracked])).sort((a, b) => a.localeCompare(b));
+}
+
+let companySuggestList = [];
+let companySuggestIdx = -1;
+
+function onCompanyInput() {
+  const input = document.getElementById('f-company');
+  const val = input.value.trim();
+  if (!val) { closeCompanySuggest(); return; }
+
+  const lower = val.toLowerCase();
+  companySuggestList = getCompanySource()
+    .filter(c => c.toLowerCase().includes(lower))
+    .sort((a, b) => {
+      const aStarts = a.toLowerCase().startsWith(lower) ? 0 : 1;
+      const bStarts = b.toLowerCase().startsWith(lower) ? 0 : 1;
+      if (aStarts !== bStarts) return aStarts - bStarts;
+      return a.localeCompare(b);
+    })
+    .slice(0, 8);
+
+  companySuggestIdx = companySuggestList.length ? 0 : -1;
+  renderCompanySuggest(val);
+}
+
+function renderCompanySuggest(query) {
+  const box = document.getElementById('company-suggest');
+  if (!box) return;
+  if (!companySuggestList.length) { box.classList.remove('open'); box.innerHTML = ''; return; }
+
+  const lower = query.toLowerCase();
+  box.innerHTML = companySuggestList.map((c, i) => {
+    const startsMatch = c.toLowerCase().startsWith(lower);
+    const display = startsMatch
+      ? `<strong>${esc(c.slice(0, query.length))}</strong>${esc(c.slice(query.length))}`
+      : esc(c);
+    return `<div class="company-suggest-item${i === companySuggestIdx ? ' active' : ''}"
+                  onmousedown="event.preventDefault(); selectCompanySuggest(${i})">${display}</div>`;
+  }).join('');
+  box.classList.add('open');
+}
+
+function selectCompanySuggest(i) {
+  const input = document.getElementById('f-company');
+  if (!companySuggestList[i]) return;
+  input.value = companySuggestList[i];
+  closeCompanySuggest();
+  input.focus();
+}
+
+function closeCompanySuggest() {
+  const box = document.getElementById('company-suggest');
+  if (box) { box.classList.remove('open'); box.innerHTML = ''; }
+  companySuggestList = [];
+  companySuggestIdx = -1;
+}
+
+function onCompanyBlur() {
+  // Delay so a click on a suggestion (mousedown) still registers first.
+  setTimeout(closeCompanySuggest, 120);
+}
+
+function onCompanyKeydown(ev) {
+  if (!companySuggestList.length) return;
+  const input = document.getElementById('f-company');
+
+  if (ev.key === 'ArrowDown') {
+    ev.preventDefault();
+    companySuggestIdx = Math.min(companySuggestIdx + 1, companySuggestList.length - 1);
+    renderCompanySuggest(input.value.trim());
+  } else if (ev.key === 'ArrowUp') {
+    ev.preventDefault();
+    companySuggestIdx = Math.max(companySuggestIdx - 1, 0);
+    renderCompanySuggest(input.value.trim());
+  } else if (ev.key === 'Enter') {
+    if (companySuggestIdx >= 0) { ev.preventDefault(); selectCompanySuggest(companySuggestIdx); }
+  } else if (ev.key === 'Tab') {
+    // Autocomplete to the top match, then let Tab continue on to the next field.
+    if (companySuggestIdx >= 0 && companySuggestList[companySuggestIdx]) {
+      input.value = companySuggestList[companySuggestIdx];
+    }
+    closeCompanySuggest();
+  } else if (ev.key === 'Escape') {
+    closeCompanySuggest();
+  }
+}
+
+
+function toggleForm() {
+  const f = document.getElementById('add-form');
+  if (f.classList.contains('open')) closeAddForm();
+  else openAddForm();
+}
+
+function resetAddFormFields() {
+  ['f-company','f-role','f-link','f-deadline','f-notes','f-term-year',
+   'f-ref-name','f-ref-email','f-ref-linkedin','f-resume-version'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-status').value = 'plan';
+  document.getElementById('f-priority').value = 'med';
+  document.getElementById('f-term').value = '';
+  document.getElementById('f-interview-stage').value = '';
+  renderTagPicker([]);
+  onFormStatusChange();
+  dismissDupWarning();
+}
+
+// ─── Tag picker + interview-stage sub-field ────────────────────────────────
+function renderTagPicker(selected) {
+  const wrap = document.getElementById('f-tag-picker');
+  if (!wrap) return;
+  const sel = new Set(selected || []);
+  wrap.innerHTML = SUBSYSTEM_TAGS.map(t => `
+    <label class="${sel.has(t) ? 'checked' : ''}">
+      <input type="checkbox" value="${esc(t)}" ${sel.has(t) ? 'checked' : ''}
+             onchange="this.parentElement.classList.toggle('checked', this.checked)">
+      ${esc(t)}
+    </label>`).join('');
+}
+function getSelectedTags() {
+  return Array.from(document.querySelectorAll('#f-tag-picker input:checked')).map(i => i.value);
+}
+function onFormStatusChange() {
+  const wrap = document.getElementById('f-interview-stage-wrap');
+  const status = document.getElementById('f-status').value;
+  wrap.style.display = status === 'interview' ? '' : 'none';
+}
+
+function openAddForm() {
+  editIdx = null;
+  resetAddFormFields();
+  document.getElementById('form-title').textContent = 'Add new internship';
+  document.getElementById('form-save-btn').textContent = 'Save internship';
+  const f = document.getElementById('add-form');
+  f.classList.add('open');
+  document.getElementById('f-company').focus();
+}
+
+function closeAddForm() {
+  document.getElementById('add-form').classList.remove('open');
+  editIdx = null;
+}
+
+// Opens the same form pre-filled with an existing entry's data so it can be edited in place.
+function editEntry(idx) {
+  const e = entries[idx];
+  if (!e) return;
+  editIdx = idx;
+  dismissDupWarning();
+  document.getElementById('f-company').value = e.company || '';
+  document.getElementById('f-role').value = e.role || '';
+  document.getElementById('f-status').value = e.status || 'plan';
+  document.getElementById('f-priority').value = e.priority || 'med';
+  document.getElementById('f-term').value = e.term || '';
+  document.getElementById('f-term-year').value = e.termYear || '';
+  document.getElementById('f-link').value = e.link || '';
+  document.getElementById('f-deadline').value = e.deadline || '';
+  document.getElementById('f-notes').value = e.notes || '';
+  document.getElementById('f-ref-name').value = e.referralName || '';
+  document.getElementById('f-ref-email').value = e.referralEmail || '';
+  document.getElementById('f-ref-linkedin').value = e.referralLinkedIn || '';
+  document.getElementById('f-resume-version').value = e.resumeVersion || '';
+  document.getElementById('f-interview-stage').value = e.interviewStage || '';
+  renderTagPicker(e.tags || []);
+  onFormStatusChange();
+  document.getElementById('form-title').textContent = 'Edit internship';
+  document.getElementById('form-save-btn').textContent = 'Save changes';
+  const f = document.getElementById('add-form');
+  f.classList.add('open');
+  if (typeof f.scrollIntoView === 'function') f.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  document.getElementById('f-company').focus();
+}
+
+// Opens the add form pre-filled with company + term + priority from an existing
+// entry, so applying to a second role at a company you're already tracking
+// doesn't mean retyping everything. Role, status, deadline, link and notes are
+// left blank/reset since those are specific to the new role.
+function duplicateEntry(idx) {
+  const e = entries[idx];
+  if (!e) return;
+  editIdx = null;
+  resetAddFormFields();
+  document.getElementById('f-company').value = e.company || '';
+  document.getElementById('f-priority').value = e.priority || 'med';
+  document.getElementById('f-term').value = e.term || '';
+  document.getElementById('f-term-year').value = e.termYear || '';
+  renderTagPicker(e.tags || []);
+  document.getElementById('form-title').textContent = 'New role at ' + e.company;
+  document.getElementById('form-save-btn').textContent = 'Save internship';
+  const f = document.getElementById('add-form');
+  f.classList.add('open');
+  if (typeof f.scrollIntoView === 'function') f.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  document.getElementById('f-role').focus();
+  showToast('Copied ' + e.company + ' — fill in the new role');
+}
+
+// ─── Fuzzy matching helpers ─────────────────────────────────────────────────
+// Strips punctuation/parenthetical suffixes and collapses whitespace so
+// "Blue Origin (Spring 2027)" and "Blue Origin" normalize to the same string,
+// and "Space X" / "SpaceX" become directly comparable.
+function normalizeForMatch(str) {
+  return (str || '')
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, ' ')       // drop parenthetical suffixes
+    .replace(/[^a-z0-9]+/g, ' ')      // strip punctuation/spacing differences
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+function normalizeTight(str) {
+  return normalizeForMatch(str).replace(/ /g, ''); // for substring/no-space comparisons
+}
+// Classic edit-distance, capped so long strings don't blow up cost — we only
+// care whether two short company/role strings are "close enough".
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  const al = a.length, bl = b.length;
+  if (al === 0) return bl;
+  if (bl === 0) return al;
+  let prev = new Array(bl + 1);
+  let cur = new Array(bl + 1);
+  for (let j = 0; j <= bl; j++) prev[j] = j;
+  for (let i = 1; i <= al; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= bl; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(cur[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+    }
+    [prev, cur] = [cur, prev];
+  }
+  return prev[bl];
+}
+// Fuzzy match on company (+ role when both entries have one): catches exact
+// matches, one-is-substring-of-the-other (e.g. "Blue Origin" vs
+// "Blue Origin (Spring 2027)"), and near-typos (e.g. "SpaceX" vs "Space X")
+// via a Levenshtein distance threshold that scales with string length.
+function fuzzyCompanyMatch(a, b) {
+  const na = normalizeForMatch(a), nb = normalizeForMatch(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  const ta = normalizeTight(a), tb = normalizeTight(b);
+  if (ta && tb && (ta.includes(tb) || tb.includes(ta))) return true;
+  const maxLen = Math.max(na.length, nb.length);
+  const threshold = maxLen <= 5 ? 1 : Math.max(1, Math.round(maxLen * 0.2));
+  return levenshtein(na, nb) <= threshold;
+}
+
+// Used to catch re-adding the same opportunity twice (e.g. pasting a bulk
+// list again, double-clicking Save, or slightly different spelling/punctuation
+// like "SpaceX" vs "Space X" or "Blue Origin" vs "Blue Origin (Spring 2027)").
+function findDuplicateEntry(company, role, excludeIdx) {
+  const r = normalizeForMatch(role);
+  return entries.findIndex((e, i) => {
+    if (i === excludeIdx) return false;
+    if (!fuzzyCompanyMatch(e.company, company)) return false;
+    const er = normalizeForMatch(e.role);
+    // If either side has no role specified, a company match alone is enough
+    // to warn (most re-adds don't bother retyping the role).
+    if (!r || !er) return true;
+    return er === r || fuzzyCompanyMatch(e.role, role);
+  });
+}
+
+function dismissDupWarning() {
+  const w = document.getElementById('dup-warning');
+  if (w) w.classList.remove('show');
+}
+
+function addEntry(force) {
+  const company = document.getElementById('f-company').value.trim();
+  if (!company) { showToast('Please enter a company name'); return; }
+  const status = document.getElementById('f-status').value;
+  const fields = {
+    company,
+    role: document.getElementById('f-role').value.trim(),
+    status,
+    priority: document.getElementById('f-priority').value,
+    term: document.getElementById('f-term').value,
+    termYear: document.getElementById('f-term-year').value.trim(),
+    link: document.getElementById('f-link').value.trim(),
+    deadline: document.getElementById('f-deadline').value,
+    notes: document.getElementById('f-notes').value.trim(),
+    tags: getSelectedTags(),
+    referralName: document.getElementById('f-ref-name').value.trim(),
+    referralEmail: document.getElementById('f-ref-email').value.trim(),
+    referralLinkedIn: document.getElementById('f-ref-linkedin').value.trim(),
+    resumeVersion: document.getElementById('f-resume-version').value.trim(),
+    interviewStage: status === 'interview' ? (document.getElementById('f-interview-stage').value || '') : '',
+  };
+
+  // Only warn on brand-new entries — editing an existing one obviously matches itself.
+  if (editIdx === null && !force) {
+    const dupIdx = findDuplicateEntry(company, fields.role, null);
+    if (dupIdx !== -1) {
+      const dup = entries[dupIdx];
+      const label = dup.role ? `${dup.company} – ${dup.role}` : dup.company;
+      document.getElementById('dup-warning-text').textContent =
+        `You're already tracking "${label}" (${statusLabel[dup.status] || dup.status}). Add it again anyway?`;
+      document.getElementById('dup-warning').classList.add('show');
+      return;
+    }
+  }
+  dismissDupWarning();
+
+  if (editIdx !== null && entries[editIdx]) {
+    const e = entries[editIdx];
+    const prevStatus = e.status;
+    const prevStage = e.interviewStage;
+    Object.assign(e, fields);
+    if (status !== prevStatus) recordHistory(e, status);
+    if (fields.interviewStage && fields.interviewStage !== prevStage) recordStageHistory(e, fields.interviewStage);
+    normalizeMilestones(e);
+    save(); render();
+    closeAddForm();
+    showToast('Updated ' + company);
+    return;
+  }
+
+  const entry = { ...fields, added: Date.now() };
+  recordHistory(entry, status);
+  if (entry.interviewStage) recordStageHistory(entry, entry.interviewStage);
+  entries.unshift(entry);
+  save(); updateStreak(); render();
+  resetAddFormFields();
+  closeAddForm();
+  showToast('Added ' + company + '!');
+}
+
+// ─── Soft delete + undo ─────────────────────────────────────────────────────
+// Deleting no longer interrupts with a confirm() dialog — instead the row
+// disappears immediately and an undo toast gives a few seconds to reverse a
+// fat-fingered delete (single row or bulk) before the snapshot is dropped.
+let preDeleteSnapshot = null;
+function del(i) {
+  const removed = entries[i];
+  if (!removed) return;
+  preDeleteSnapshot = entries.slice();
+  openNotes.delete(i);
+  selectedRows.delete(i);
+  entries.splice(i, 1);
+  save(); render();
+  showUndoToast('Removed ' + removed.company);
+}
+function undoDelete() {
+  if (!preDeleteSnapshot) return;
+  entries = preDeleteSnapshot;
+  preDeleteSnapshot = null;
+  save(); render();
+  showToast('Restored');
+}
+
+function onStatusChange(i, val, prev) {
+  if (val === 'offer') { confetti(); showToast('🎉 Offer received! Congrats!'); }
+  else if (val === 'rejected') { showRejectionToast(); }
+  else if (val === 'interview' && prev !== 'offer') showToast('🤞 Interview lined up — good luck!');
+  else if (val === 'applied') showToast('✅ Application logged!');
+}
+
+function changeStatus(i, val) {
+  const prev = entries[i].status;
+  entries[i].status = val;
+  recordHistory(entries[i], val);
+  save(); render();
+  onStatusChange(i, val, prev);
+}
+
+function toggleNotes(i) {
+  if (openNotes.has(i)) openNotes.delete(i);
+  else openNotes.add(i);
+  render();
+}
+
+function saveNote(i, val) {
+  entries[i].notes = val;
+  save();
+}
+
+// ─── Rejection reframe ────────────────────────────────────────────────────────
+const rejectionMessages = [
+  '💪 Every no gets you closer to yes.',
+  '🌱 Rejection is redirection. Keep going.',
+  '🚀 The right opportunity is still out there.',
+  '✨ Your resilience is your superpower.',
+  '🎯 One door closes, many others open.',
+  '🌟 This just freed you for something better.',
+  '🔥 Keep the fire going — you\'ve got this.',
+  '💡 Every rejection is a lesson. You\'re learning.',
+];
+function showRejectionToast() {
+  const msg = rejectionMessages[Math.floor(Math.random() * rejectionMessages.length)];
+  showToast(msg, 3800);
+}
+
+// ─── Quick-add (FAB) ──────────────────────────────────────────────────────────
+function openQuickAdd() {
+  const m = document.getElementById('quick-modal');
+  m.classList.add('open');
+  setTimeout(() => document.getElementById('q-company').focus(), 100);
+}
+function closeQuickAdd(ev) {
+  if (ev && ev.target !== document.getElementById('quick-modal')) return;
+  document.getElementById('quick-modal').classList.remove('open');
+  document.getElementById('q-company').value = '';
+  document.getElementById('q-role').value = '';
+  document.getElementById('q-term').value = '';
+}
+function quickAddSave() {
+  const company = document.getElementById('q-company').value.trim();
+  if (!company) { document.getElementById('q-company').focus(); return; }
+  const entry = {
+    company,
+    role: document.getElementById('q-role').value.trim(),
+    status: 'applied',
+    priority: 'med',
+    term: document.getElementById('q-term').value,
+    termYear: '',
+    link: '',
+    deadline: '',
+    notes: '',
+    added: Date.now()
+  };
+  recordHistory(entry, 'applied');
+  entries.unshift(entry);
+  save(); updateStreak(); render();
+  document.getElementById('quick-modal').classList.remove('open');
+  document.getElementById('q-company').value = '';
+  document.getElementById('q-role').value = '';
+  document.getElementById('q-term').value = '';
+  showToast('✅ Applied to ' + company + ' — logged!');
+}
+
+// ─── Bulk paste ────────────────────────────────────────────────────────────────
+// Paste format: a company name on its own line, followed by one or more role
+// lines for that company, with a blank line separating each company block.
+// Role lines may embed a term + year anywhere in the text (e.g. "Fall 2026" or
+// "Spring 2027 Engineering Intern"); that gets pulled out into term/termYear
+// and stripped from the role text.
+let bulkRows = [];
+
+// ─── Quick Capture (bookmarklet) ────────────────────────────────────────────
+// Lets the user drag a bookmarklet to their bar; clicking it on any job
+// posting page grabs the page title + URL and reopens this tracker with
+// the add form pre-filled. Works by reusing a named window ('internshipTracker')
+// so repeat captures land in the same tab instead of spawning new ones.
+function buildBookmarkletCode() {
+  const trackerUrl = location.href.split('#')[0].split('?')[0];
+  // This string is the actual bookmarklet payload — it runs on the JOB PAGE,
+  // not here, so it can only see that page's title/URL and window/localStorage.
+  const payload = `(function(){
+    var t=document.title||'';
+    var u=location.href;
+    var p=new URLSearchParams();
+    p.set('capture','1');
+    p.set('title',t);
+    p.set('link',u);
+    window.open(${JSON.stringify(trackerUrl)}+'?'+p.toString(),'internshipTracker');
+  })();`;
+  return 'javascript:' + encodeURIComponent(payload.replace(/\s+/g, ' '));
+}
+
+function openCaptureModal() {
+  const code = buildBookmarkletCode();
+  const link = document.getElementById('capture-bookmarklet-link');
+  link.href = code;
+  document.getElementById('capture-bookmarklet-code').value = code;
+  // Local files trigger browser security restrictions on cross-origin window.open;
+  // warn so it's not a silent mystery if the bookmarklet doesn't fire.
+  const isLocalFile = location.protocol === 'file:';
+  document.getElementById('capture-warning').style.display = isLocalFile ? '' : 'none';
+  document.getElementById('capture-fallback').style.display = '';
+  document.getElementById('capture-modal').classList.add('open');
+}
+function closeCaptureModal(ev) {
+  if (ev && ev.target !== document.getElementById('capture-modal')) return;
+  document.getElementById('capture-modal').classList.remove('open');
+}
+
+// Best-effort split of a job-page <title> into a company guess + role guess.
+// Handles the common patterns: "Role - Company", "Company - Role | Careers",
+// "Role at Company". Always leaves the raw title recoverable so a bad guess
+// is a one-click fix in the form, never a silent wrong entry.
+function guessCompanyRoleFromTitle(rawTitle) {
+  let t = (rawTitle || '').trim();
+  t = t.replace(/\s*[\|\-–—]\s*(careers?|jobs?|job application|apply( now)?|hiring)\s*$/i, '').trim();
+  const atMatch = t.match(/^(.*?)\s+at\s+([A-Z][\w&.,' ]{1,40})$/i);
+  if (atMatch) {
+    return { role: atMatch[1].trim(), company: atMatch[2].trim() };
+  }
+  const parts = t.split(/\s*[\|\-–—]\s*/).map(s => s.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    // Shortest segment (by word count) is usually the company name;
+    // the rest is the role/title.
+    let shortest = parts[0];
+    parts.forEach(p => { if (p.split(' ').length < shortest.split(' ').length) shortest = p; });
+    const role = parts.filter(p => p !== shortest).join(' – ');
+    return { role: role || t, company: shortest };
+  }
+  return { role: t, company: '' };
+}
+
+// Checked once at boot. If the bookmarklet sent capture params, pre-fill and
+// open the add form, then strip the params so a refresh doesn't re-trigger it.
+function checkCaptureParams() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('capture') !== '1') return;
+  const title = params.get('title') || '';
+  const link = params.get('link') || '';
+  const guess = guessCompanyRoleFromTitle(title);
+  openAddForm();
+  document.getElementById('f-company').value = guess.company;
+  document.getElementById('f-role').value = guess.role;
+  document.getElementById('f-link').value = link;
+  showToast('Captured from job page — double-check company/role, then save');
+  history.replaceState({}, '', location.pathname + location.hash);
+}
+
+function openBulkPaste() {
+  bulkRows = [];
+  document.getElementById('bulk-input').value = '';
+  renderBulkPreview();
+  document.getElementById('bulk-modal').classList.add('open');
+  setTimeout(() => document.getElementById('bulk-input').focus(), 100);
+}
+function closeBulkPaste() {
+  document.getElementById('bulk-modal').classList.remove('open');
+}
+function closeBulkPasteBgClick(ev) {
+  if (ev.target === document.getElementById('bulk-modal')) closeBulkPaste();
+}
+
+function parseRoleLine(line) {
+  const m = line.match(/\b(fall|spring|summer)\s+(\d{4})\b/i);
+  if (!m) return { role: shortenRoleTitle(line.trim()), term: '', termYear: '' };
+  const term = m[1].toLowerCase();
+  const termYear = m[2];
+  let role = line.slice(0, m.index) + line.slice(m.index + m[0].length);
+  role = role.replace(/\s*-\s*$/, '').replace(/^\s*-\s*/, '').replace(/\s{2,}/g, ' ').trim();
+  role = shortenRoleTitle(role);
+  return { role, term, termYear };
+}
+
+function shortenRoleTitle(role) {
+  return role.replace(/\bInternships?\b/gi, 'Intern').replace(/\s{2,}/g, ' ').trim();
+}
+
+function parseBulkText(text) {
+  const blocks = text.split(/\n\s*\n/).map(b => b.trim()).filter(Boolean);
+  const rows = [];
+  blocks.forEach(block => {
+    const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return;
+    const company = lines[0];
+    const roleLines = lines.slice(1);
+    if (!roleLines.length) {
+      rows.push({ company, role: '', term: '', termYear: '' });
+    } else {
+      roleLines.forEach(rl => rows.push({ company, ...parseRoleLine(rl) }));
+    }
+  });
+  return rows;
+}
+
+function onBulkInputChange() {
+  bulkRows = parseBulkText(document.getElementById('bulk-input').value);
+  renderBulkPreview();
+}
+
+function renderBulkPreview() {
+  const wrap = document.getElementById('bulk-preview-wrap');
+  const countLabel = document.getElementById('bulk-count-label');
+  const addBtn = document.getElementById('bulk-add-btn');
+  if (!bulkRows.length) {
+    wrap.innerHTML = '<div class="bulk-empty-hint">Paste above and parsed entries will show here to review before adding — edit any field, or ✕ to drop a row.</div>';
+    countLabel.textContent = '';
+    addBtn.disabled = true;
+    addBtn.textContent = 'Add all';
+    return;
+  }
+  wrap.innerHTML = bulkRows.map((r, i) => `
+    <div class="bulk-preview-row">
+      <input type="text" class="bulk-company-input" value="${esc(r.company)}" oninput="updateBulkRow(${i},'company',this.value)" placeholder="Company">
+      <input type="text" class="bulk-role-input" value="${esc(r.role)}" oninput="updateBulkRow(${i},'role',this.value)" placeholder="Role">
+      <select class="bulk-term-select" onchange="updateBulkRow(${i},'term',this.value)">
+        <option value="" ${!r.term ? 'selected' : ''}>No term</option>
+        <option value="fall" ${r.term === 'fall' ? 'selected' : ''}>🍂 Fall</option>
+        <option value="spring" ${r.term === 'spring' ? 'selected' : ''}>🌸 Spring</option>
+        <option value="summer" ${r.term === 'summer' ? 'selected' : ''}>☀️ Summer</option>
+      </select>
+      <input type="number" class="bulk-year-input" value="${esc(r.termYear)}" oninput="updateBulkRow(${i},'termYear',this.value)" placeholder="Year">
+      <button class="bulk-remove-btn" onclick="removeBulkRow(${i})" title="Remove this row">✕</button>
+    </div>
+  `).join('');
+  countLabel.textContent = bulkRows.length + ' entr' + (bulkRows.length === 1 ? 'y' : 'ies') + ' ready to add';
+  addBtn.textContent = 'Add all ' + bulkRows.length;
+  addBtn.disabled = false;
+}
+
+function updateBulkRow(i, key, val) {
+  if (!bulkRows[i]) return;
+  bulkRows[i][key] = val;
+}
+
+function removeBulkRow(i) {
+  bulkRows.splice(i, 1);
+  renderBulkPreview();
+}
+
+function commitBulkAdd() {
+  const validRows = bulkRows.filter(r => r.company && r.company.trim());
+  if (!validRows.length) { showToast('Nothing to add'); return; }
+  const status = document.getElementById('bulk-default-status').value;
+  const priority = document.getElementById('bulk-default-priority').value;
+  validRows.forEach(r => {
+    const entry = {
+      company: r.company.trim(),
+      role: (r.role || '').trim(),
+      status,
+      priority,
+      term: r.term || '',
+      termYear: r.termYear ? String(r.termYear).trim() : '',
+      link: '',
+      deadline: '',
+      notes: '',
+      added: Date.now(),
+    };
+    recordHistory(entry, status);
+    entries.unshift(entry);
+  });
+  save(); updateStreak(); render();
+  closeBulkPaste();
+  showToast('Added ' + validRows.length + ' internship' + (validRows.length === 1 ? '' : 's') + '!');
+  if (validRows.length >= 3) confetti();
+}
+
+// ─── Shortcuts ────────────────────────────────────────────────────────────────
+function showShortcuts() {
+  document.getElementById('shortcuts-overlay').classList.add('open');
+}
+function closeShortcuts(ev) {
+  if (ev && ev.target !== document.getElementById('shortcuts-overlay')) return;
+  document.getElementById('shortcuts-overlay').classList.remove('open');
+}
+
+document.addEventListener('keydown', (ev) => {
+  const tag = document.activeElement.tagName;
+  const isInput = ['INPUT','TEXTAREA','SELECT'].includes(tag);
+
+  if (ev.key === 'Escape') {
+    document.getElementById('add-form').classList.remove('open');
+    document.getElementById('quick-modal').classList.remove('open');
+    document.getElementById('bulk-modal').classList.remove('open');
+    document.getElementById('bulk-deadline-modal').classList.remove('open');
+    document.getElementById('shortcuts-overlay').classList.remove('open');
+    clearSelection();
+    return;
+  }
+  if (isInput) return;
+
+  if (ev.key === 'n' || ev.key === 'N') {
+    ev.preventDefault();
+    // If shortcuts overlay open, close it first
+    document.getElementById('shortcuts-overlay').classList.remove('open');
+    toggleForm();
+  } else if (ev.key === 'k' || ev.key === 'K') {
+    ev.preventDefault();
+    setView(currentView === 'table' ? 'kanban' : 'table');
+  } else if (ev.key === 'v' || ev.key === 'V') {
+    ev.preventDefault();
+    const order = ['table', 'kanban', 'sankey', 'data'];
+    setView(order[(order.indexOf(currentView) + 1) % order.length]);
+  } else if (ev.key === 'f' || ev.key === 'F' || ev.key === '/') {
+    ev.preventDefault();
+    document.getElementById('search-input').focus();
+  } else if (ev.key === 'b' || ev.key === 'B') {
+    ev.preventDefault();
+    document.getElementById('shortcuts-overlay').classList.remove('open');
+    openBulkPaste();
+  } else if (ev.key === 'e' || ev.key === 'E') {
+    ev.preventDefault();
+    exportCSV();
+  } else if (ev.key === 'a' || ev.key === 'A') {
+    ev.preventDefault();
+    const allChecked = document.getElementById('check-all').checked;
+    toggleSelectAll(!allChecked);
+  } else if (ev.key === 'd' || ev.key === 'D') {
+    if (selectedRows.size > 0) {
+      ev.preventDefault();
+      openBulkDeadlineModal();
+    }
+  } else if (ev.key === 'Delete' || ev.key === 'Backspace') {
+    if (selectedRows.size > 0) {
+      ev.preventDefault();
+      bulkDeleteSelected();
+    }
+  } else if (ev.key === '?') {
+    ev.preventDefault();
+    showShortcuts();
+  }
+});
+
+// ─── Full keyboard flow for the add/edit form ─────────────────────────────────
+// Enter moves to the next field and, from the last field, submits — mirroring
+// the quick-add modal's behavior everywhere, not just there. The notes textarea
+// is exempted from plain Enter (so multi-line notes still work); Ctrl/Cmd+Enter
+// submits from anywhere, including the textarea. The company field defers to
+// its own autocomplete handler while a suggestion list is open.
+const ADD_FORM_FIELD_ORDER = [
+  'f-company', 'f-role', 'f-status', 'f-priority',
+  'f-term', 'f-term-year', 'f-link', 'f-deadline', 'f-notes'
+];
+
+function handleAddFormKeydown(ev) {
+  if (ev.key !== 'Enter') return;
+  const target = ev.target;
+  if (!target || !target.id) return;
+
+  // Let the company autocomplete's own Enter handling (select suggestion) win.
+  if (target.id === 'f-company') {
+    const box = document.getElementById('company-suggest');
+    if (box && box.classList.contains('open')) return;
+  }
+
+  const isTextarea = target.tagName === 'TEXTAREA';
+  const forceSubmit = ev.ctrlKey || ev.metaKey;
+  // In the notes textarea, plain Enter should insert a newline as usual.
+  if (isTextarea && !forceSubmit) return;
+
+  ev.preventDefault();
+  const idx = ADD_FORM_FIELD_ORDER.indexOf(target.id);
+  if (idx === -1 || forceSubmit || idx === ADD_FORM_FIELD_ORDER.length - 1) {
+    addEntry();
+    return;
+  }
+  const next = document.getElementById(ADD_FORM_FIELD_ORDER[idx + 1]);
+  if (next) {
+    next.focus();
+    if (typeof next.select === 'function' && next.tagName !== 'SELECT') next.select();
+  }
+}
+
+// Close quick modal on Enter in q-role
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('q-role').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') quickAddSave();
+  });
+  document.getElementById('q-company').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') document.getElementById('q-role').focus();
+  });
+  document.getElementById('add-form').addEventListener('keydown', handleAddFormKeydown);
+  document.getElementById('goal-input').addEventListener('change', function() {
+    localStorage.setItem(GOAL_KEY, this.value);
+    render();
+    if (window.pushToCloud) window.pushToCloud();
+  });
+  setSort('priority');
+});
+
+// ─── Export CSV ───────────────────────────────────────────────────────────────
+function exportCSV() {
+  if (!entries.length) { showToast('Nothing to export yet'); return; }
+  const headers = ['Company','Role','Status','Interview Round','Priority','Term','Deadline','Tags','Referral Name','Referral Email','Referral LinkedIn','Resume Version','Notes','Link'];
+  const rows = entries.map(e => [
+    e.company, e.role || '', statusLabel[e.status] || '', interviewStageLabel[e.interviewStage] || '',
+    e.priority || '', termFullLabel(e), e.deadline || '', (e.tags || []).join('; '),
+    e.referralName || '', e.referralEmail || '', e.referralLinkedIn || '', e.resumeVersion || '',
+    (e.notes || '').replace(/,/g,'|'), e.link || ''
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'internships_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  showToast('CSV exported! (For status history + full fidelity, use ⬆Backup for a JSON export instead)');
+}
+
+// ─── JSON Backup / Restore ──────────────────────────────────────────────────
+// Full round-trip backup: unlike the CSV export, this keeps status history,
+// milestone chips, tags, referral contacts, and app settings (goal, streak,
+// ghost threshold) — everything needed to fully reconstruct the tracker if
+// localStorage is ever cleared. Cloud sync credentials are deliberately left
+// out so a shared/exported backup file can't leak your Firebase config.
+const BACKUP_VERSION = 1;
+function exportBackup() {
+  const payload = {
+    _backup: 'internship-tracker',
+    _version: BACKUP_VERSION,
+    exportedAt: new Date().toISOString(),
+    entries: entries,
+    goal: localStorage.getItem(GOAL_KEY) || '',
+    streak: (() => { try { return JSON.parse(localStorage.getItem(STREAK_KEY) || 'null'); } catch (e) { return null; } })(),
+    ghostDays: getGhostDays(),
+  };
+  const json = JSON.stringify(payload, null, 2);
+  const a = document.createElement('a');
+  a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(json);
+  a.download = 'internship-tracker-backup_' + new Date().toISOString().slice(0, 10) + '.json';
+  a.click();
+  showToast('Backup downloaded — ' + entries.length + ' entries');
+}
+
+function importBackup(evt) {
+  const file = evt.target.files && evt.target.files[0];
+  evt.target.value = ''; // allow re-selecting the same file later
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let data;
+    try { data = JSON.parse(reader.result); } catch (e) {
+      showToast('That file isn\'t valid JSON'); return;
+    }
+    if (!data || !Array.isArray(data.entries)) {
+      showToast('Doesn\'t look like a tracker backup file'); return;
+    }
+    const n = data.entries.length;
+    const replace = confirm(
+      `This backup has ${n} entries (exported ${data.exportedAt ? new Date(data.exportedAt).toLocaleString() : 'unknown date'}).\n\n` +
+      `Click OK to REPLACE your current ${entries.length} entries, or Cancel to MERGE (append backup entries not already tracked).`
+    );
+    if (replace) {
+      entries = data.entries;
+    } else {
+      let added = 0;
+      data.entries.forEach(be => {
+        if (findDuplicateEntry(be.company, be.role, null) === -1) { entries.unshift(be); added++; }
+      });
+      showToast(`Merged ${added} new entr${added !== 1 ? 'ies' : 'y'} (${n - added} skipped as duplicates)`);
+      entries.forEach(normalizeMilestones); entries.forEach(ensureHistory);
+      save(); render();
+      return;
+    }
+    if (typeof data.goal === 'string' && data.goal) {
+      localStorage.setItem(GOAL_KEY, data.goal);
+      const gi = document.getElementById('goal-input');
+      if (gi) gi.value = data.goal;
+    }
+    if (data.streak) localStorage.setItem(STREAK_KEY, JSON.stringify(data.streak));
+    if (data.ghostDays) {
+      localStorage.setItem(GHOST_DAYS_KEY, String(data.ghostDays));
+      const gd = document.getElementById('ghost-days');
+      if (gd) gd.value = data.ghostDays;
+    }
+    entries.forEach(normalizeMilestones);
+    entries.forEach(ensureHistory);
+    save(); updateStreak(); render();
+    showToast(`Restored ${n} entries from backup`);
+  };
+  reader.readAsText(file);
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg, duration) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), duration || 2800);
+}
+// Same as showToast, but with an "Undo" action button for soft-deletes.
+function showUndoToast(msg, duration) {
+  const t = document.getElementById('toast');
+  t.innerHTML = `<span>${esc(msg)}</span><button class="toast-undo-btn" onclick="undoDelete(); document.getElementById('toast').classList.remove('show')">Undo</button>`;
+  t.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    t.classList.remove('show');
+    preDeleteSnapshot = null;
+  }, duration || 6000);
+}
+
+// ─── Confetti ─────────────────────────────────────────────────────────────────
+function confetti() {
+  const colors = ['#2D5016','#5A8A2E','#8B5E00','#4A2680','#1A3D6B','#8B1A1A'];
+  for (let i = 0; i < 80; i++) {
+    const el = document.createElement('div');
+    el.className = 'confetti-piece';
+    el.style.cssText = `
+      left: ${Math.random() * 100}vw;
+      top: -10px;
+      background: ${colors[Math.floor(Math.random() * colors.length)]};
+      width: ${4 + Math.random() * 8}px;
+      height: ${4 + Math.random() * 8}px;
+      animation-delay: ${Math.random() * 0.8}s;
+      animation-duration: ${2 + Math.random() * 1.5}s;
+      border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
+    `;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+  }
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+load();
+loadGoal();
+document.getElementById('ghost-days').value = getGhostDays();
+render();
+checkCaptureParams();
+// Re-check for newly-stale applications periodically for tabs left open a long time.
+setInterval(() => { checkGhosting(); render(); }, 60 * 60 * 1000);
+
+</script>
+
+<script type="module">
+// ─── Cloud Sync (Firebase Firestore) ─────────────────────────────────────────
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const CLOUD_KEY = 'intern_cloud_config';
+let cloudDb = null;
+let cloudUnsub = null;
+let applyingRemote = false;
+let pushDebounce = null;
+
+function getCloudConfig() {
+  try { return JSON.parse(localStorage.getItem(CLOUD_KEY) || 'null'); } catch (e) { return null; }
+}
+
+function setCloudStatus(text, cls) {
+  const el = document.getElementById('cloud-status');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'cloud-status ' + (cls || '');
+}
+
+function setInlineMsg(text, cls) {
+  const el = document.getElementById('cloud-inline-msg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.className = 'cloud-inline-msg ' + (cls || '');
+}
+
+async function initCloud() {
+  const cfg = getCloudConfig();
+  if (!cfg || !cfg.firebaseConfig || !cfg.syncKey) { setCloudStatus('Not connected', 'off'); return; }
+  try {
+    setCloudStatus('Connecting…', 'connecting');
+    const app = initializeApp(cfg.firebaseConfig, 'intern-tracker-' + Date.now());
+    const auth = getAuth(app);
+    await signInAnonymously(auth);
+    cloudDb = getFirestore(app);
+    const ref = doc(cloudDb, 'trackers', cfg.syncKey);
+    if (cloudUnsub) cloudUnsub();
+    cloudUnsub = onSnapshot(ref, (snap) => {
+      if (!snap.exists()) { setCloudStatus('Synced (waiting for data)', 'on'); return; }
+      const data = snap.data();
+      applyingRemote = true;
+      if (Array.isArray(data.entries)) {
+        entries = data.entries;
+        if (typeof normalizeMilestones === 'function') entries.forEach(normalizeMilestones);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+      }
+      if (typeof data.goal === 'string') {
+        localStorage.setItem(GOAL_KEY, data.goal);
+        const gi = document.getElementById('goal-input');
+        if (gi) gi.value = data.goal;
+      }
+      if (typeof render === 'function') render();
+      applyingRemote = false;
+      setCloudStatus('Synced ✓', 'on');
+    }, (err) => {
+      console.error('[CloudSync] snapshot error:', err);
+      setCloudStatus('Sync error', 'error');
+    });
+  } catch (e) {
+    console.error('[CloudSync] init failed:', e);
+    setCloudStatus('Connection failed', 'error');
+  }
+}
+
+window.pushToCloud = function () {
+  const cfg = getCloudConfig();
+  if (!cfg || !cloudDb || applyingRemote) return;
+  clearTimeout(pushDebounce);
+  pushDebounce = setTimeout(async () => {
+    try {
+      setCloudStatus('Syncing…', 'connecting');
+      await setDoc(doc(cloudDb, 'trackers', cfg.syncKey), {
+        entries: entries,
+        goal: document.getElementById('goal-input')?.value || '',
+        updatedAt: serverTimestamp()
+      });
+      setCloudStatus('Synced ✓', 'on');
+    } catch (e) {
+      console.error('[CloudSync] push failed:', e);
+      setCloudStatus('Sync failed', 'error');
+    }
+  }, 700);
+};
+
+window.openCloudModal = function () {
+  const cfg = getCloudConfig();
+  const configInput = document.getElementById('cloud-config-input');
+  const keyInput = document.getElementById('cloud-synckey-input');
+  if (cfg) {
+    configInput.value = JSON.stringify(cfg.firebaseConfig, null, 2);
+    keyInput.value = cfg.syncKey || '';
+  }
+  setInlineMsg('', '');
+  document.getElementById('cloud-modal').classList.add('open');
+};
+
+window.closeCloudModal = function () {
+  document.getElementById('cloud-modal').classList.remove('open');
+};
+
+window.cloudModalBgClick = function (ev) {
+  if (ev.target === document.getElementById('cloud-modal')) closeCloudModal();
+};
+
+window.copyCloudRules = function () {
+  const text = document.getElementById('cloud-rules-box').textContent;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(
+      () => setInlineMsg('Rules copied — paste into Firestore > Rules.', 'ok'),
+      () => setInlineMsg('Could not copy — select and copy manually.', 'error')
+    );
+  } else {
+    setInlineMsg('Clipboard unavailable — select and copy manually.', 'error');
+  }
+};
+
+// Fills the sync-key field with a long random UUID, since the Firestore rules
+// (allow read/write if syncKey.size() >= 20) treat key length/randomness as the
+// only real access control once this tracker is on a public URL — a guessable
+// key like a name+year is the weak point, not the hosting itself.
+window.generateSyncKey = function () {
+  const key = (crypto.randomUUID && crypto.randomUUID()) ||
+    Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+  document.getElementById('cloud-synckey-input').value = key;
+  setInlineMsg('Random key generated — save it somewhere, you\'ll need it on other devices.', 'ok');
+};
+
+window.handleSaveCloudConfig = function () {
+  const raw = document.getElementById('cloud-config-input').value.trim();
+  const syncKey = document.getElementById('cloud-synckey-input').value.trim();
+  if (!raw || !syncKey) {
+    setInlineMsg('Please paste your Firebase config and choose a sync key.', 'error');
+    return;
+  }
+  if (syncKey.length < 20) {
+    setInlineMsg('For security, use a longer sync key (20+ random characters) — short keys are easy to guess and the rules snippet above requires it.', 'error');
+    return;
+  }
+  let firebaseConfig;
+  try {
+    // Accept both strict JSON and the unquoted-key object literal Firebase's console gives you
+    firebaseConfig = new Function('return (' + raw + ')')();
+    if (!firebaseConfig || !firebaseConfig.apiKey || !firebaseConfig.projectId) {
+      throw new Error('missing apiKey/projectId');
+    }
+  } catch (e) {
+    setInlineMsg('Could not parse that config — check it was pasted in full.', 'error');
+    return;
+  }
+  localStorage.setItem(CLOUD_KEY, JSON.stringify({ firebaseConfig, syncKey }));
+  setInlineMsg('Connected! Syncing now…', 'ok');
+  initCloud().then(() => {
+    if (window.pushToCloud && entries && entries.length) window.pushToCloud();
+  });
+  setTimeout(closeCloudModal, 900);
+};
+
+window.disconnectCloud = function () {
+  localStorage.removeItem(CLOUD_KEY);
+  if (cloudUnsub) { cloudUnsub(); cloudUnsub = null; }
+  cloudDb = null;
+  document.getElementById('cloud-config-input').value = '';
+  document.getElementById('cloud-synckey-input').value = '';
+  setInlineMsg('Disconnected.', 'ok');
+  setCloudStatus('Not connected', 'off');
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(initCloud, 200);
+});
+</script>
+</body>
+</html>

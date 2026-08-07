@@ -3240,6 +3240,7 @@ const ADJACENT_SPACE_COMPANIES = [
   'Anduril Industries', 'Northrop Grumman', 'Lockheed Martin', 'Boeing',
   'L3Harris', 'Aerojet Rocketdyne', 'Sierra Nevada Corporation',
   'Made In Space (Redwire)', 'Impulse Space', 'Momentus',
+  'NASA', 'Jet Propulsion Laboratory (JPL)', 'The Aerospace Corporation',
 ];
 const AEROSPACE_COMPANIES = [...LAUNCH_VEHICLE_COMPANIES, ...ADJACENT_SPACE_COMPANIES];
 
@@ -3691,14 +3692,24 @@ let bulkRows = [];
 function buildBookmarkletCode() {
   const trackerUrl = location.href.split('#')[0].split('?')[0];
   // This string is the actual bookmarklet payload — it runs on the JOB PAGE,
-  // not here, so it can only see that page's title/URL and window/localStorage.
+  // not here, so it can only see that page's title/URL/body text. It scans
+  // the body (not just <title>) for a season+year, since most postings put
+  // "Summer 2027" in the page body/description, not the tab title.
   const payload = `(function(){
     var t=document.title||'';
     var u=location.href;
+    var body=(document.body&&document.body.innerText||'').slice(0,8000);
+    var hay=t+' '+body;
+    var sm=hay.match(/\\b(fall|autumn|spring|summer)\\b/i);
+    var ym=hay.match(/\\b(20[2-3][0-9])\\b/);
+    var term=sm?(sm[1].toLowerCase()==='autumn'?'fall':sm[1].toLowerCase()):'';
+    var year=ym?ym[1]:'';
     var p=new URLSearchParams();
     p.set('capture','1');
     p.set('title',t);
     p.set('link',u);
+    if(term)p.set('term',term);
+    if(year)p.set('year',year);
     window.open(${JSON.stringify(trackerUrl)}+'?'+p.toString(),'internshipTracker');
   })();`;
   return 'javascript:' + encodeURIComponent(payload.replace(/\s+/g, ' '));
@@ -3722,35 +3733,62 @@ function closeCaptureModal(ev) {
 }
 
 // Best-effort split of a job-page <title> into a company guess + role guess.
-// Tries the known-company list first (your tracked companies + the aerospace
-// list), since exact matches there are far more reliable than guessing from
-// punctuation. Falls back to a "Role at Company" / "Role - Company" pattern
-// split only if no known company appears in the title.
-function guessCompanyRoleFromTitle(rawTitle) {
-  let t = (rawTitle || '').trim();
-  t = t.replace(/\s*[\|\-–—]\s*(careers?|jobs?|job application|apply( now)?|hiring|job details?)\s*$/i, '').trim();
+// Job boards vary a lot: some put the company in the title ("Varda - Fluids
+// Engineer"), some don't ("Job Application for Fluids Engineer (Starship)"
+// on a Greenhouse/Lever page), in which case the company usually only shows
+// up in the URL (spacex.com, boards.greenhouse.io/varda, jobs.lever.co/nasa).
+// So this checks title AND link, and matches on short/common names (not just
+// full legal names like "Varda Space Industries") since that's what postings
+// actually say.
+function companyMatchCandidates(c) {
+  const candidates = new Set();
+  const abbr = c.match(/\(([A-Z0-9]{2,8})\)/);
+  if (abbr) candidates.add(abbr[1]);
+  let stripped = c.replace(/\s*\([^)]*\)\s*/g, '').trim();
+  candidates.add(stripped);
+  const suffixRe = /\s+(Space Industries|Space Systems|Space Technologies|Technologies|Industries|Systems|Corporation|Company|Aerospace|Space|Inc\.?|LLC)$/i;
+  let short = stripped, changed = true;
+  while (changed) {
+    changed = false;
+    const m = short.match(suffixRe);
+    if (m) { short = short.slice(0, m.index).trim(); changed = true; }
+  }
+  if (short.length >= 3) candidates.add(short);
+  return Array.from(candidates).filter(Boolean);
+}
 
-  // 1. Try matching a known company name as a whole word inside the title.
-  const known = getCompanySource().slice().sort((a, b) => b.length - a.length); // longest first
-  for (const c of known) {
-    const re = new RegExp('(^|[^a-z0-9])' + c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^a-z0-9])', 'i');
-    const m = t.match(re);
-    if (m) {
-      const role = t.replace(re, '$1$2')
-        .replace(/\s*[\|\-–—:]\s*/g, ' ')
-        .replace(/\s+\b(at|for|with)\s*$/i, '') // leftover connector word when company was "Role at Company"
-        .replace(/\s{2,}/g, ' ')
-        .trim();
+function guessCompanyRoleFromTitle(rawTitle, link) {
+  let t = (rawTitle || '').trim();
+  // Strip trailing site chrome ("| Careers", "- Apply Now") and leading
+  // job-board boilerplate ("Job Application for", "Apply to") that isn't
+  // part of the actual role name.
+  t = t.replace(/\s*[\|\-–—]\s*(careers?|jobs?|job application|apply( now)?|hiring|job details?)\s*$/i, '').trim();
+  t = t.replace(/^(job application for|application for|apply (for|to)|now hiring:?|career opportunity:?)\s+/i, '').trim();
+
+  const matchText = t + ' ' + (link || '');
+  // Build (candidate, canonicalCompany) pairs across all known companies,
+  // longest candidate first so "Sierra Nevada Corporation" doesn't get
+  // shadowed by a shorter, more ambiguous alias.
+  const known = getCompanySource();
+  const pairs = [];
+  known.forEach(c => companyMatchCandidates(c).forEach(cand => pairs.push({ cand, c })));
+  pairs.sort((a, b) => b.cand.length - a.cand.length);
+
+  for (const { cand, c } of pairs) {
+    const re = new RegExp('(^|[^a-z0-9])' + cand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^a-z0-9])', 'i');
+    if (re.test(matchText)) {
+      // Only strip the match out of the ROLE text if it actually appears in
+      // the title itself — if it only matched the URL, leave the title alone.
+      const role = re.test(t)
+        ? t.replace(re, '$1$2').replace(/\s*[\|\-–—:]\s*/g, ' ').replace(/\s+\b(at|for|with)\s*$/i, '').replace(/\s{2,}/g, ' ').trim()
+        : t;
       return { role: role || t, company: c };
     }
   }
 
-  // 2. "Role at Company"
+  // No known company matched — fall back to "Role at Company" splitting.
   const atMatch = t.match(/^(.*?)\s+at\s+([A-Z][\w&.,' ]{1,40})$/i);
   if (atMatch) return { role: atMatch[1].trim(), company: atMatch[2].trim() };
-
-  // 3. Fall back to splitting on punctuation; shortest segment is usually the
-  // company name (e.g. "Propulsion Test Engineer Intern - Varda").
   const parts = t.split(/\s*[\|\-–—]\s*/).map(s => s.trim()).filter(Boolean);
   if (parts.length >= 2) {
     let shortest = parts[0];
@@ -3761,36 +3799,45 @@ function guessCompanyRoleFromTitle(rawTitle) {
   return { role: t, company: '' };
 }
 
-// Guesses term (fall/spring/summer) + 4-digit year from the page title or URL.
-// Looks for the season word and a nearby year separately since postings phrase
-// this many different ways ("Summer 2027 Intern", "2027 Fall Internship", etc.)
+// Guesses term (fall/spring/summer) + 4-digit year from whatever text is
+// passed in — used as a fallback when the bookmarklet couldn't find a
+// season/year on the page itself (most postings don't put term info in the
+// <title>, so the bookmarklet's own page-body scan is the primary source).
 function guessTermFromText(text) {
   const t = (text || '');
-  const seasonMatch = t.match(/\b(fall|autumn|spring|summer|winter)\b/i);
+  const seasonMatch = t.match(/\b(fall|autumn|spring|summer)\b/i);
   const yearMatch = t.match(/\b(20[2-3][0-9])\b/);
   let term = '';
   if (seasonMatch) {
     const s = seasonMatch[1].toLowerCase();
-    term = s === 'autumn' ? 'fall' : (s === 'winter' ? '' : s); // no "winter" option in the form
+    term = s === 'autumn' ? 'fall' : s;
   }
   return { term, year: yearMatch ? yearMatch[1] : '' };
 }
 
 // Checked once at boot. If the bookmarklet sent capture params, pre-fill and
 // open the add form, then strip the params so a refresh doesn't re-trigger it.
+// term/year come pre-guessed from the bookmarklet's own page-body scan (it
+// has access to the full posting text, which the title alone usually lacks);
+// falls back to guessing from the title/link here if those weren't sent.
 function checkCaptureParams() {
   const params = new URLSearchParams(location.search);
   if (params.get('capture') !== '1') return;
   const title = params.get('title') || '';
   const link = params.get('link') || '';
-  const guess = guessCompanyRoleFromTitle(title);
-  const termGuess = guessTermFromText(title + ' ' + link);
+  const guess = guessCompanyRoleFromTitle(title, link);
+  let term = params.get('term') || '';
+  let year = params.get('year') || '';
+  if (!term && !year) {
+    const termGuess = guessTermFromText(title + ' ' + link);
+    term = termGuess.term; year = termGuess.year;
+  }
   openAddForm();
   document.getElementById('f-company').value = guess.company;
   document.getElementById('f-role').value = guess.role;
   document.getElementById('f-link').value = link;
-  if (termGuess.term) document.getElementById('f-term').value = termGuess.term;
-  if (termGuess.year) document.getElementById('f-term-year').value = termGuess.year;
+  if (term) document.getElementById('f-term').value = term;
+  if (year) document.getElementById('f-term-year').value = year;
   showToast('Captured from job page — double-check company/role/term, then save');
   history.replaceState({}, '', location.pathname + location.hash);
 }

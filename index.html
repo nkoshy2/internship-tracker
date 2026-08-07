@@ -32,8 +32,17 @@
     --fall-bg: #FBE8D9;
     --spring: #A6296B;
     --spring-bg: #FCE7F1;
-    --summer: #9C7A00;
+    --summer: #7A5C00;
     --summer-bg: #FFF6D9;
+    /* Individual interview-round colors (Sankey diagram). Distinct from the
+       generic --amber used for "Interview" elsewhere (badges, Kanban column,
+       and the Sankey's own fallback node for entries with no round logged)
+       so a reader can tell rounds apart at a glance, while an entry that's
+       just "somewhere in interviewing" with no round specified still reads
+       as the familiar amber. */
+    --stage-recruiter: #2B6E6E;
+    --stage-technical: #B8541A;
+    --stage-final: #6B2D5C;
     --radius: 10px;
     --radius-sm: 6px;
     --shadow: 0 1px 3px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.04);
@@ -281,6 +290,7 @@
   .activity-divider { width: 1px; align-self: stretch; background: var(--border); }
   .trend-wrap { flex: 1; min-width: 0; }
   .trend-title { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .trend-excluded-note { font-size: 11px; color: var(--muted); font-weight: 400; }
   .trend-svg { width: 100%; height: 140px; display: block; cursor: crosshair; }
   .trend-line { fill: none; stroke: var(--accent-mid); stroke-width: 2; }
   .trend-area { fill: var(--accent-light); opacity: 0.8; }
@@ -332,6 +342,67 @@
     .controls-actions { justify-content: flex-start; }
     .controls-actions-right { margin-left: 0; }
   }
+
+  /* FILTERS POPOVER — priority/term/company/tag live here now; search + status
+     stay inline since those are what people reach for most. */
+  .filters-popover-wrap { position: relative; flex-shrink: 0; }
+  .filters-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 16px; height: 16px; padding: 0 4px;
+    border-radius: 999px; background: var(--accent); color: #fff;
+    font-size: 10px; font-weight: 700; margin-left: 5px; vertical-align: 1px;
+  }
+  .filters-popover {
+    display: none;
+    position: absolute; top: calc(100% + 6px); left: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 14px; width: 240px; z-index: 90;
+    flex-direction: column; gap: 10px;
+  }
+  .filters-popover.open { display: flex; }
+  .filters-popover .form-field label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px; display: block; }
+  .filters-popover .ctrl-select { width: 100%; }
+  .filters-popover-clear { align-self: flex-start; background: none; border: none; color: var(--accent); font-size: 12px; cursor: pointer; padding: 2px 0; text-decoration: underline; }
+
+  /* FIRST-RUN / EMPTY-APP STATE — shown instead of stats/progress/heatmap
+     when there's nothing tracked yet, so a new user isn't greeted by a wall
+     of zeroed-out cards before they've added anything. */
+  .first-run-card {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 3rem 2rem;
+    text-align: center;
+    margin-bottom: 1.5rem;
+  }
+  body.app-empty .first-run-card { display: block; }
+  body.app-empty .stats,
+  body.app-empty .progress-card,
+  body.app-empty #analytics-section,
+  body.app-empty .controls-filters,
+  body.app-empty .filters-popover-wrap { display: none !important; }
+  .first-run-icon { font-size: 2.75rem; margin-bottom: 0.75rem; }
+  .first-run-title { font-family: 'DM Serif Display', serif; font-size: 1.6rem; margin-bottom: 0.5rem; }
+  .first-run-sub { font-size: 14px; color: var(--muted); max-width: 420px; margin: 0 auto 1.25rem; line-height: 1.5; }
+  .first-run-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+  /* ANALYTICS SECTION (heatmap + trend + insights) — collapsed by default and
+     moved below the table, since it's a secondary view, not the landing view. */
+  #analytics-section { margin-top: 1.5rem; margin-bottom: 2rem; }
+  .analytics-toggle-btn {
+    display: flex; align-items: center; justify-content: space-between;
+    width: 100%; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 0.9rem 1.25rem; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; color: var(--text);
+    box-shadow: var(--shadow);
+  }
+  .analytics-toggle-btn:hover { background: var(--surface2); }
+  .analytics-toggle-caret { color: var(--muted); font-size: 12px; transition: transform 0.15s; }
+  .analytics-toggle-btn[aria-expanded="true"] .analytics-toggle-caret { transform: rotate(180deg); }
+  .analytics-body { display: none; margin-top: 12px; }
+  .analytics-body.open { display: block; }
 
   /* ADD FORM */
   .add-form {
@@ -458,15 +529,6 @@
   .binder-tab-company.active { border-color: var(--accent-mid); color: var(--accent); }
   .binder-empty { font-size: 12px; color: var(--muted); padding: 4px 6px; }
 
-  /* Row differentiation driven by the binder rail */
-  #tbl tr { transition: opacity 0.15s; }
-  #tbl tr.row-dim { opacity: 0.32; }
-  #tbl tr.row-dim:hover { opacity: 0.6; }
-  #tbl tr.row-lit td { background: var(--surface2); }
-  #tbl tr.row-lit td:first-child { box-shadow: inset 4px 0 0 var(--accent-mid); }
-  #tbl tr.row-lit-fall td:first-child { box-shadow: inset 4px 0 0 var(--fall); }
-  #tbl tr.row-lit-spring td:first-child { box-shadow: inset 4px 0 0 var(--spring); }
-  #tbl tr.row-lit-summer td:first-child { box-shadow: inset 4px 0 0 var(--summer); }
   table { width: 100%; border-collapse: collapse; }
   thead { background: var(--surface2); }
   thead th {
@@ -621,28 +683,50 @@
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
     padding: 0.9rem 1.1rem; margin-bottom: 1rem;
   }
+  .data-controls-row {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 1rem;
+  }
   .data-search-wrap {
     display: flex; align-items: center; gap: 8px;
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
-    padding: 8px 12px; margin-bottom: 1rem; max-width: 320px;
+    padding: 8px 12px; flex: 1 1 200px; max-width: 320px;
   }
   .data-search-wrap input {
     border: none; outline: none; background: none; font-size: 13px;
     font-family: 'DM Sans', sans-serif; color: var(--text); flex: 1;
   }
+  .data-count { font-size: 12px; color: var(--muted); margin-left: auto; white-space: nowrap; }
   .data-entries-wrap { display: flex; flex-direction: column; gap: 12px; }
   .data-entry-card {
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    box-shadow: var(--shadow); padding: 1rem 1.25rem;
+    box-shadow: var(--shadow); overflow: hidden;
   }
-  .data-entry-header {
-    display: flex; justify-content: space-between; align-items: flex-start;
-    gap: 12px; margin-bottom: 10px; flex-wrap: wrap;
+  .data-entry-summary {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0.85rem 1.1rem; cursor: pointer; user-select: none;
   }
+  .data-entry-summary:hover { background: var(--surface2); }
+  .data-entry-caret {
+    font-size: 10px; color: var(--muted); flex-shrink: 0; width: 10px;
+    display: inline-block; transition: transform 0.15s;
+  }
+  .data-entry-card.open .data-entry-caret { transform: rotate(90deg); }
+  .data-entry-summary-main { flex: 1; min-width: 0; }
+  .data-entry-updated { font-size: 11px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+  .data-entry-summary-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .data-entry-body { display: none; padding: 0 1.1rem 1rem; }
+  .data-entry-card.open .data-entry-body { display: block; border-top: 1px solid var(--border); margin-top: 2px; padding-top: 0.85rem; }
   .data-entry-company { font-family: 'DM Serif Display', serif; font-size: 1.05rem; }
   .data-entry-role { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
-  .data-entry-status { color: var(--accent); font-weight: 500; }
-  .data-entry-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .data-entry-exclude {
+    display: flex; align-items: center; gap: 6px; width: fit-content;
+    font-size: 12px; color: var(--muted); margin-bottom: 10px; cursor: pointer; user-select: none;
+  }
+  .data-entry-exclude input { accent-color: var(--accent); cursor: pointer; }
+  .data-entry-exclude.checked { color: var(--accent); font-weight: 500; }
+  .data-stage-section { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border); }
+  .data-stage-heading { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .data-stage-hint { font-size: 11.5px; color: var(--muted); margin-bottom: 8px; line-height: 1.4; }
   .data-hist-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
   .data-hist-table th {
     text-align: left; color: var(--muted); font-weight: 500; font-size: 11px;
@@ -706,6 +790,21 @@
   .kanban-card-meta { display: flex; gap: 6px; margin-top: 7px; flex-wrap: wrap; }
   .kanban-col.drag-over { background: var(--accent-light); border-color: var(--accent-mid); }
 
+  /* KANBAN CARD — status nav (replaces the old "Move to:" dropdown) */
+  .kanban-card-nav {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 6px; margin-top: 8px; padding-top: 7px; border-top: 1px dashed var(--border);
+  }
+  .kanban-nav-btn {
+    width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    font-size: 13px; line-height: 1; cursor: pointer; transition: background 0.15s, color 0.15s;
+  }
+  .kanban-nav-btn:hover:not(:disabled) { background: var(--accent-light); color: var(--accent); border-color: var(--accent-mid); }
+  .kanban-nav-btn:disabled { opacity: 0.3; cursor: default; }
+  .kanban-nav-status { font-size: 11px; color: var(--muted); text-align: center; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
   /* BADGES */
   .badge {
     display: inline-flex; align-items: center; gap: 4px;
@@ -748,7 +847,10 @@
   .deadline-ok { color: var(--muted); }
   .deadline-none { color: var(--muted); font-style: italic; font-size: 12px; }
 
+  .status-cell { position: relative; }
+  .status-badge { cursor: pointer; }
   .status-sel {
+    display: none;
     font-size: 12px; padding: 4px 8px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -757,6 +859,8 @@
     font-family: 'DM Sans', sans-serif;
     cursor: pointer; outline: none;
   }
+  .status-cell.editing .status-badge { display: none; }
+  .status-cell.editing .status-sel { display: inline-block; }
 
   .icon-btn {
     background: none; border: none; cursor: pointer;
@@ -1007,6 +1111,23 @@
   }
   .form-subhead { font-size: 12px; font-weight: 600; color: var(--muted); margin: 2px 0 6px; text-transform: uppercase; letter-spacing: 0.04em; }
 
+  /* ADD FORM — progressive disclosure. Company/role/status/priority/term/link/
+     deadline/notes stay visible (the fields almost every entry needs); tags,
+     referral contact, interview round, and resume version are common but not
+     universal, so they're tucked behind this toggle instead of adding to the
+     wall of fields shown on every single add. */
+  .form-more-toggle {
+    display: flex; align-items: center; gap: 6px;
+    background: none; border: none; color: var(--accent);
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+    cursor: pointer; padding: 6px 2px; margin-bottom: 4px; width: 100%; text-align: left;
+  }
+  .form-more-toggle:hover { color: var(--accent-mid); }
+  .form-more-toggle .caret { font-size: 10px; transition: transform 0.15s; display: inline-block; }
+  .form-more-toggle[aria-expanded="true"] .caret { transform: rotate(180deg); }
+  .form-more-body { display: none; padding-top: 6px; }
+  .form-more-body.open { display: block; }
+
   /* INTERVIEW STAGE PILL */
   .stage-sel {
     margin-top: 4px; font-size: 11px; padding: 3px 6px;
@@ -1025,7 +1146,7 @@
     display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center;
   }
   .response-metric { font-size: 12px; color: var(--muted); }
-  .response-metric b { display: block; font-size: 20px; color: var(--accent); font-family: 'DM Serif Display', serif; font-weight: normal; }
+  .response-metric b { display: block; font-size: 20px; color: var(--accent); font-weight: 600; }
 
   /* EDITABLE DATES in the response-detail table ("Show detail") */
   .hist-date-cell {
@@ -1074,11 +1195,6 @@
   .kanban-card[tabindex] { outline: none; }
   .kanban-card[tabindex]:focus-visible {
     box-shadow: 0 0 0 3px var(--accent-mid);
-  }
-  .kanban-card-move-sel {
-    margin-top: 6px; width: 100%; font-size: 11px; padding: 3px 5px;
-    border-radius: 6px; border: 1px solid var(--border); background: var(--surface);
-    color: var(--text); cursor: pointer;
   }
 
   /* RESPONSIVE */
@@ -1150,6 +1266,18 @@
 </header>
 
 <main>
+  <!-- FIRST-RUN STATE — shown only when there are zero entries, in place of
+       the stats/progress/analytics blocks below. -->
+  <div class="first-run-card" id="first-run-card">
+    <div class="first-run-icon">🎯</div>
+    <div class="first-run-title">Let's start tracking</div>
+    <div class="first-run-sub">Add the internships you're applying to and this page fills in with your stats, activity, and pipeline as you go.</div>
+    <div class="first-run-actions">
+      <button class="ctrl-btn primary" onclick="toggleForm()" title="Add internship (N)">+ Add your first internship</button>
+      <button class="ctrl-btn" onclick="openBulkPaste()" title="Paste a list of companies/roles (B)">📋 Bulk paste a list</button>
+    </div>
+  </div>
+
   <!-- STATS -->
   <div class="stats">
     <div class="stat-card">
@@ -1185,54 +1313,69 @@
     <div class="milestones" id="milestones"></div>
   </div>
 
-  <!-- HEATMAP -->
-  <div class="heatmap-card">
-    <div class="heatmap-title">📅 Application Activity — Last 16 Weeks</div>
-    <div class="activity-row">
-      <div class="heatmap-col-wrap">
-        <div class="heatmap-grid-wrap">
-          <div class="heatmap-inner">
-            <div class="heatmap-daylabels" id="heatmap-daylabels"></div>
-            <div>
-              <div class="heatmap-months" id="heatmap-months"></div>
-              <div class="heatmap-grid" id="heatmap-grid"></div>
+  <!-- ANALYTICS — heatmap, trend chart, and pipeline insights. Sits right up
+       top (below the progress card) so it's one click away without scrolling,
+       but collapsed by default so it doesn't compete with the table for the
+       first thing you see. -->
+  <div id="analytics-section">
+    <button class="analytics-toggle-btn" id="analytics-toggle-btn" onclick="toggleAnalytics()" aria-expanded="false" aria-controls="analytics-body">
+      <span>📊 Activity &amp; insights <span style="color:var(--muted); font-weight:400">— heatmap, trend, response times</span></span>
+      <span class="analytics-toggle-caret">▾</span>
+    </button>
+    <div class="analytics-body" id="analytics-body">
+      <!-- HEATMAP -->
+      <div class="heatmap-card" style="margin-top:12px">
+        <div class="heatmap-title" style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <span id="heatmap-title-text">📅 Application Activity — Last 10 Weeks</span>
+          <button class="ctrl-btn small-copy" id="heatmap-range-toggle" type="button" style="text-transform:none; letter-spacing:normal;" onclick="toggleHeatmapRange()" title="Toggle the heatmap between a 10-week and 16-week window" aria-label="Toggle heatmap date range">See more</button>
+        </div>
+        <div class="activity-row">
+          <div class="heatmap-col-wrap">
+            <div class="heatmap-grid-wrap">
+              <div class="heatmap-inner">
+                <div class="heatmap-daylabels" id="heatmap-daylabels"></div>
+                <div>
+                  <div class="heatmap-months" id="heatmap-months"></div>
+                  <div class="heatmap-grid" id="heatmap-grid"></div>
+                </div>
+              </div>
+            </div>
+            <div class="heatmap-legend">
+              <span>Less</span>
+              <div class="heatmap-legend-cell" style="background:var(--surface2); border:1px solid var(--border)"></div>
+              <div class="heatmap-legend-cell" style="background:#c6e6a0"></div>
+              <div class="heatmap-legend-cell" style="background:#8ccf58"></div>
+              <div class="heatmap-legend-cell" style="background:#5a9e26"></div>
+              <div class="heatmap-legend-cell" style="background:#2D5016"></div>
+              <span>More</span>
             </div>
           </div>
-        </div>
-        <div class="heatmap-legend">
-          <span>Less</span>
-          <div class="heatmap-legend-cell" style="background:var(--surface2); border:1px solid var(--border)"></div>
-          <div class="heatmap-legend-cell" style="background:#c6e6a0"></div>
-          <div class="heatmap-legend-cell" style="background:#8ccf58"></div>
-          <div class="heatmap-legend-cell" style="background:#5a9e26"></div>
-          <div class="heatmap-legend-cell" style="background:#2D5016"></div>
-          <span>More</span>
+          <div class="activity-divider"></div>
+          <div class="trend-wrap">
+            <div class="trend-title">Total applications over time <span id="trend-excluded-note" class="trend-excluded-note"></span></div>
+            <div id="trend-chart"></div>
+          </div>
         </div>
       </div>
-      <div class="activity-divider"></div>
-      <div class="trend-wrap">
-        <div class="trend-title">Total applications over time</div>
-        <div id="trend-chart"></div>
-      </div>
-    </div>
-  </div>
 
-  <!-- PIPELINE INSIGHTS: response times + interview funnel -->
-  <div class="response-card" id="insights-card" style="display:none; flex-direction:column; align-items:stretch">
-    <div style="display:flex; flex-wrap:wrap; gap:1.5rem; align-items:center; width:100%">
-      <div class="response-metric" title="Median days from Applied to any status change">
-        <b id="resp-to-response">—</b>Median: applied → response
+      <!-- PIPELINE INSIGHTS: response times + interview funnel -->
+      <div class="response-card" id="insights-card" style="display:none; flex-direction:column; align-items:stretch">
+        <div style="display:flex; flex-wrap:wrap; gap:1.5rem; align-items:center; width:100%">
+          <div class="response-metric" title="Median days from Applied to any status change">
+            <b id="resp-to-response">—</b>Median: applied → response
+          </div>
+          <div class="response-metric" title="Median days from Applied to Interview">
+            <b id="resp-to-interview">—</b>Median: applied → interview
+          </div>
+          <div class="response-metric" title="Median days from Interview to a resolved outcome (offer/rejected/ghosted)">
+            <b id="resp-to-decision">—</b>Median: interview → decision
+          </div>
+          <div style="flex:1; min-width:220px">
+            <div class="funnel-wrap" id="funnel-wrap"></div>
+          </div>
+          <button class="ctrl-btn small-copy" type="button" onclick="setView('data')" title="See and correct the raw dates these medians are calculated from">🗂 Edit data</button>
+        </div>
       </div>
-      <div class="response-metric" title="Median days from Applied to Interview">
-        <b id="resp-to-interview">—</b>Median: applied → interview
-      </div>
-      <div class="response-metric" title="Median days from Interview to a resolved outcome (offer/rejected/ghosted)">
-        <b id="resp-to-decision">—</b>Median: interview → decision
-      </div>
-      <div style="flex:1; min-width:220px">
-        <div class="funnel-wrap" id="funnel-wrap"></div>
-      </div>
-      <button class="ctrl-btn small-copy" type="button" onclick="setView('data')" title="See and correct the raw dates these medians are calculated from">🗂 Edit data</button>
     </div>
   </div>
 
@@ -1253,30 +1396,50 @@
         <option value="offer">Offer</option>
         <option value="rejected">Rejected</option>
       </select>
-      <select class="ctrl-select" id="filter-priority" onchange="render()">
-        <option value="">All priorities</option>
-        <option value="high">High priority</option>
-        <option value="med">Medium priority</option>
-        <option value="low">Low priority</option>
-      </select>
-      <select class="ctrl-select" id="filter-term" onchange="render()">
-        <option value="">All terms</option>
-        <option value="fall">🍂 Fall</option>
-        <option value="spring">🌸 Spring</option>
-        <option value="summer">☀️ Summer</option>
-      </select>
-      <select class="ctrl-select" id="filter-company" onchange="render()">
-        <option value="">All companies</option>
-      </select>
-      <select class="ctrl-select" id="filter-tag" onchange="render()">
-        <option value="">All tags</option>
-        <option value="TPS/Hypersonics">TPS/Hypersonics</option>
-        <option value="Propulsion">Propulsion</option>
-        <option value="Structures">Structures</option>
-        <option value="Avionics">Avionics</option>
-        <option value="GNC">GNC</option>
-        <option value="Test">Test</option>
-      </select>
+      <div class="filters-popover-wrap">
+        <button class="ctrl-btn" id="filters-toggle-btn" onclick="toggleFiltersPopover(event)" title="More filters: priority, term, company, tag">
+          ⚙ Filters<span class="filters-badge" id="filters-badge" style="display:none">0</span>
+        </button>
+        <div class="filters-popover" id="filters-popover">
+          <div class="form-field">
+            <label>Priority</label>
+            <select class="ctrl-select" id="filter-priority" onchange="render()">
+              <option value="">All priorities</option>
+              <option value="high">High priority</option>
+              <option value="med">Medium priority</option>
+              <option value="low">Low priority</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Term</label>
+            <select class="ctrl-select" id="filter-term" onchange="render()">
+              <option value="">All terms</option>
+              <option value="fall">🍂 Fall</option>
+              <option value="spring">🌸 Spring</option>
+              <option value="summer">☀️ Summer</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Company</label>
+            <select class="ctrl-select" id="filter-company" onchange="render()">
+              <option value="">All companies</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Tag</label>
+            <select class="ctrl-select" id="filter-tag" onchange="render()">
+              <option value="">All tags</option>
+              <option value="TPS/Hypersonics">TPS/Hypersonics</option>
+              <option value="Propulsion">Propulsion</option>
+              <option value="Structures">Structures</option>
+              <option value="Avionics">Avionics</option>
+              <option value="GNC">GNC</option>
+              <option value="Test">Test</option>
+            </select>
+          </div>
+          <button class="filters-popover-clear" type="button" onclick="clearExtraFilters()">Clear these filters</button>
+        </div>
+      </div>
     </div>
 
     <!-- Row 2: view switcher + settings + actions -->
@@ -1291,10 +1454,9 @@
         <span class="ghost-setting" title="If an application sits in Applied this long with no update, it's auto-moved to Ghosted">
           👻 Ghost after <input type="number" id="ghost-days" min="7" max="365" value="30" onchange="onGhostDaysChange()">d
         </span>
-        <button class="ctrl-btn" onclick="exportCSV()">⬇ Export CSV</button>
         <button class="ctrl-btn" onclick="openCaptureModal()" title="Get a bookmarklet to log a posting from any job page in one click">🔖 Quick Capture</button>
         <button class="ctrl-btn" onclick="openBulkPaste()" title="Paste a list of companies/roles (B)">📋 Bulk Paste</button>
-        <button class="ctrl-btn icon-btn" onclick="showShortcuts()" title="Keyboard shortcuts (?)">⌨</button>
+        <button class="ctrl-btn icon-btn" onclick="showShortcuts()" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts (?)">⌨ Shortcuts</button>
         <button class="ctrl-btn primary" onclick="toggleForm()" title="Add internship (N)">+ Add</button>
       </div>
     </div>
@@ -1325,8 +1487,8 @@
       <div class="form-field">
         <label>Status</label>
         <select id="f-status" onchange="onFormStatusChange()">
-          <option value="plan">Planning</option>
           <option value="applied">Applied</option>
+          <option value="plan">Planning</option>
           <option value="interview">Interview</option>
           <option value="ghosted">Ghosted</option>
           <option value="offer">Offer</option>
@@ -1372,38 +1534,43 @@
       <textarea id="f-notes" placeholder="e.g. Apply before semester starts, prep OOP + thermodynamics…"></textarea>
     </div>
 
-    <div class="form-subhead">Subsystem / role tags</div>
-    <div class="tag-picker" id="f-tag-picker"></div>
+    <button type="button" class="form-more-toggle" id="form-more-toggle" onclick="toggleFormMoreDetails()" aria-expanded="false" aria-controls="form-more-body">
+      <span class="caret">▾</span> More details <span style="font-weight:400; color:var(--muted)">— tags, referral contact, interview round, resume version</span>
+    </button>
+    <div class="form-more-body" id="form-more-body">
+      <div class="form-subhead">Subsystem / role tags</div>
+      <div class="tag-picker" id="f-tag-picker"></div>
 
-    <div class="form-subhead" style="margin-top:14px">Recruiter / referral contact</div>
-    <div class="form-grid-2">
-      <div class="form-field">
-        <label>Name</label>
-        <input id="f-ref-name" placeholder="e.g. Jane Smith" />
+      <div class="form-subhead" style="margin-top:14px">Recruiter / referral contact</div>
+      <div class="form-grid-2">
+        <div class="form-field">
+          <label>Name</label>
+          <input id="f-ref-name" placeholder="e.g. Jane Smith" />
+        </div>
+        <div class="form-field">
+          <label>Email</label>
+          <input id="f-ref-email" type="email" placeholder="jane@company.com" />
+        </div>
       </div>
-      <div class="form-field">
-        <label>Email</label>
-        <input id="f-ref-email" type="email" placeholder="jane@company.com" />
+      <div class="form-field" style="margin-bottom:1rem">
+        <label>LinkedIn</label>
+        <input id="f-ref-linkedin" placeholder="linkedin.com/in/…" />
       </div>
-    </div>
-    <div class="form-field" style="margin-bottom:1rem">
-      <label>LinkedIn</label>
-      <input id="f-ref-linkedin" placeholder="linkedin.com/in/…" />
-    </div>
 
-    <div class="form-grid-2">
-      <div class="form-field" id="f-interview-stage-wrap" style="display:none">
-        <label>Interview round reached</label>
-        <select id="f-interview-stage">
-          <option value="">Not started</option>
-          <option value="oa">OA</option>
-          <option value="phone">Phone Screen</option>
-          <option value="onsite">Onsite/Final</option>
-        </select>
-      </div>
-      <div class="form-field">
-        <label>Resume / story-bank version used</label>
-        <input id="f-resume-version" placeholder="e.g. v3-aerospace-bullets" />
+      <div class="form-grid-2">
+        <div class="form-field" id="f-interview-stage-wrap" style="display:none">
+          <label>Interview round reached</label>
+          <select id="f-interview-stage">
+            <option value="">Not started</option>
+            <option value="oa">Recruiter</option>
+            <option value="phone">Technical</option>
+            <option value="onsite">Final</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>Resume / story-bank version used</label>
+          <input id="f-resume-version" placeholder="e.g. v3-aerospace-bullets" />
+        </div>
       </div>
     </div>
 
@@ -1444,8 +1611,17 @@
   <!-- FLOW / SANKEY VIEW -->
   <div class="sankey-view" id="sankey-view">
     <div class="sankey-wrap">
-      <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">
-        How your tracked opportunities move between stages, across their full history (this view isn't affected by the filters above). Hover a bar or ribbon for exact counts.
+      <div style="font-size:13px;color:var(--muted);margin-bottom:10px;">
+        How opportunities move between stages, across full history.
+      </div>
+      <div class="heatmap-legend" style="margin-top:0; margin-bottom:14px;">
+        <span>Interview round:</span>
+        <div class="heatmap-legend-cell" style="background:var(--stage-recruiter)"></div>
+        <span>Recruiter</span>
+        <div class="heatmap-legend-cell" style="background:var(--stage-technical)"></div>
+        <span>Technical</span>
+        <div class="heatmap-legend-cell" style="background:var(--stage-final)"></div>
+        <span>Final</span>
       </div>
       <div id="sankey-svg-wrap"></div>
       <div class="sankey-empty" id="sankey-empty" style="display:none">Add a few opportunities and move them through statuses to see your flow diagram here.</div>
@@ -1455,11 +1631,30 @@
   <!-- DATA VIEW: full editor for the raw history behind every stat on the page -->
   <div class="data-view" id="data-view">
     <div class="data-intro">
-      Every stat on this page — medians, the funnel, the heatmap, the trend line, your streak, the Flow diagram — is calculated from each application's status history below, not stored separately. Fix a date or status here and it's fixed everywhere at once. Delete a stray record and it stops counting everywhere at once. There's nothing else to clean up.
+      Every stat on this page — medians, the funnel, the heatmap, the trend line, your streak, the Flow diagram — is calculated from each application's status history below, not stored separately. Fix a date or status here and it's fixed everywhere at once. Delete a stray record and it stops counting everywhere at once. The one exception is "Exclude from trend chart" on each card below — check it to leave a test or withdrawn entry off the trend line while it still counts everywhere else.
     </div>
-    <div class="data-search-wrap">
-      <span class="search-icon">🔍</span>
-      <input type="text" id="data-search-input" placeholder="Search companies or roles…" oninput="renderDataView()">
+    <div class="data-controls-row">
+      <div class="data-search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="data-search-input" placeholder="Search companies or roles…" oninput="renderDataView()">
+      </div>
+      <select class="ctrl-select" id="data-filter-status" onchange="renderDataView()">
+        <option value="">All statuses</option>
+        <option value="plan">Planning</option>
+        <option value="applied">Applied</option>
+        <option value="interview">Interview</option>
+        <option value="ghosted">Ghosted</option>
+        <option value="offer">Offer</option>
+        <option value="rejected">Rejected</option>
+      </select>
+      <select class="ctrl-select" id="data-sort-sel" onchange="renderDataView()">
+        <option value="recent">Recently updated</option>
+        <option value="company-asc">Company A–Z</option>
+        <option value="company-desc">Company Z–A</option>
+        <option value="status">Status</option>
+      </select>
+      <button class="ctrl-btn small-copy" id="data-expand-toggle-btn" onclick="toggleAllDataEntries()">⤢ Expand all</button>
+      <span class="data-count" id="data-count"></span>
     </div>
     <div class="data-entries-wrap" id="data-entries-wrap"></div>
   </div>
@@ -1529,39 +1724,10 @@
   <button class="bulk-deselect" onclick="clearSelection()" title="Deselect all">✕</button>
 </div>
 
-<!-- FAB -->
-<button class="fab" onclick="openQuickAdd()" title="Quick-add today's application (+)">+</button>
-
-<!-- QUICK-ADD MODAL -->
-<div class="modal-overlay" id="quick-modal" onclick="closeQuickAdd(event)">
-  <div class="modal-box">
-    <div class="modal-title">
-      Quick Apply
-      <em>Saved as Applied · today's date</em>
-    </div>
-    <div class="modal-field">
-      <label>Company *</label>
-      <input id="q-company" placeholder="e.g. Stripe" autocomplete="off" />
-    </div>
-    <div class="modal-field">
-      <label>Role</label>
-      <input id="q-role" placeholder="e.g. Product Design Intern" autocomplete="off" />
-    </div>
-    <div class="modal-field">
-      <label>Term (optional)</label>
-      <select id="q-term">
-        <option value="">No term</option>
-        <option value="fall">🍂 Fall</option>
-        <option value="spring">🌸 Spring</option>
-        <option value="summer">☀️ Summer</option>
-      </select>
-    </div>
-    <div class="modal-actions">
-      <button class="ctrl-btn" onclick="closeQuickAdd()">Cancel</button>
-      <button class="ctrl-btn primary" onclick="quickAddSave()">✓ Save & log</button>
-    </div>
-  </div>
-</div>
+<!-- FAB — opens the same Add form as the "+ Add" button (see Milestone 2:
+     the form now defaults to a minimal set of fields, so a separate "Quick
+     Add" modal duplicating company/role/term no longer earns its keep). -->
+<button class="fab" onclick="toggleForm()" title="Add internship (N)" aria-label="Add internship (N)">+</button>
 
 <!-- QUICK CAPTURE (BOOKMARKLET) MODAL -->
 <div class="modal-overlay" id="capture-modal" onclick="closeCaptureModal(event)">
@@ -1679,12 +1845,11 @@ Spring 2027 Engineering Intern - Undergraduate"></textarea>
       Keyboard Shortcuts
       <button class="shortcuts-close" onclick="closeShortcuts()">✕</button>
     </div>
-    <div class="shortcut-row"><div><span class="shortcut-key">N</span></div><div class="shortcut-desc">Open quick-add form</div></div>
+    <div class="shortcut-row"><div><span class="shortcut-key">N</span></div><div class="shortcut-desc">Open add-internship form</div></div>
     <div class="shortcut-row"><div><span class="shortcut-key">K</span></div><div class="shortcut-desc">Toggle Kanban / Table view</div></div>
     <div class="shortcut-row"><div><span class="shortcut-key">V</span></div><div class="shortcut-desc">Cycle Table → Board → Flow view</div></div>
     <div class="shortcut-row"><div><span class="shortcut-key">F</span></div><div class="shortcut-desc">Focus search bar</div></div>
     <div class="shortcut-row"><div><span class="shortcut-key">B</span></div><div class="shortcut-desc">Open bulk paste</div></div>
-    <div class="shortcut-row"><div><span class="shortcut-key">E</span></div><div class="shortcut-desc">Export CSV</div></div>
     <div class="shortcut-row"><div><span class="shortcut-key">A</span></div><div class="shortcut-desc">Select / deselect all rows</div></div>
     <div class="shortcut-row"><div><span class="shortcut-key">D</span></div><div class="shortcut-desc">Set deadline for selected rows</div></div>
     <div class="shortcut-row"><div><span class="shortcut-key">⌫</span></div><div class="shortcut-desc">Delete selected rows</div></div>
@@ -1761,24 +1926,25 @@ let sortAsc = true;
 let openNotes = new Set();
 let selectedRows = new Set(); // indices in entries[]
 let currentView = 'table'; // 'table' | 'kanban' | 'sankey' | 'data'
-let binderTab = null; // { type: 'term'|'company', value: string } | null — active binder-rail highlight
 let dragSrcIdx = null;
 let editIdx = null; // set while the add-form is being used to edit an existing entry
 
 // Bump this on every deployed change — shown in the header so it's obvious
 // (e.g. after a GitHub Pages push) whether the live site is running the
 // latest version or a stale cached copy.
-const APP_VERSION = 'v1.21';
+const APP_VERSION = 'v1.28';
 const APP_OWNER = 'Naveen Koshy';
 
 const STORAGE_KEY = 'intern_tracker_v2';
-const STREAK_KEY = 'intern_streak';
 const GOAL_KEY = 'intern_goal';
 const GHOST_DAYS_KEY = 'intern_ghost_days';
 const DEFAULT_GHOST_DAYS = 30;
 const SUBSYSTEM_TAGS = ['TPS/Hypersonics','Propulsion','Structures','Avionics','GNC','Test'];
+// Internal keys (oa/phone/onsite) are kept stable for backward compatibility
+// with data already saved under those names; only the display labels below
+// changed to Recruiter -> Technical -> Final.
 const INTERVIEW_STAGES = ['oa','phone','onsite'];
-const interviewStageLabel = { oa: 'OA', phone: 'Phone Screen', onsite: 'Onsite/Final' };
+const interviewStageLabel = { oa: 'Recruiter', phone: 'Technical', onsite: 'Final' };
 
 function getGhostDays() {
   const v = parseInt(localStorage.getItem(GHOST_DAYS_KEY), 10);
@@ -1830,7 +1996,7 @@ function recordHistory(e, status) {
   }
 }
 
-// ─── Multi-round interview tracking (OA -> Phone Screen -> Onsite/Final) ────
+// ─── Multi-round interview tracking (Recruiter -> Technical -> Final) ──────
 // A lightweight sub-stage on top of the "interview" status, rather than a
 // full status-machine rewrite: e.interviewStage holds the furthest round
 // reached, and stageHistory timestamps each round so the funnel stats and
@@ -1939,14 +2105,14 @@ function resumeVersionHtml(e) {
   return `<span class="referral-badge" style="color:var(--blue);background:var(--blue-bg)" title="Resume/story-bank version used">📄 ${esc(e.resumeVersion)}</span>`;
 }
 // Small round-selector shown only while an entry is in the Interview status —
-// lets OA / Phone Screen / Onsite be tracked without a separate status value.
+// lets Recruiter / Technical / Final rounds be tracked without a separate status value.
 function interviewStageSelHtml(e, idx) {
   if (e.status !== 'interview') return '';
   return `<select class="stage-sel" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()" onchange="event.stopPropagation(); changeInterviewStage(${idx}, this.value)" title="Interview round reached">
     <option value="" ${!e.interviewStage ? 'selected' : ''}>Round?</option>
-    <option value="oa" ${e.interviewStage === 'oa' ? 'selected' : ''}>OA</option>
-    <option value="phone" ${e.interviewStage === 'phone' ? 'selected' : ''}>Phone Screen</option>
-    <option value="onsite" ${e.interviewStage === 'onsite' ? 'selected' : ''}>Onsite/Final</option>
+    <option value="oa" ${e.interviewStage === 'oa' ? 'selected' : ''}>Recruiter</option>
+    <option value="phone" ${e.interviewStage === 'phone' ? 'selected' : ''}>Technical</option>
+    <option value="onsite" ${e.interviewStage === 'onsite' ? 'selected' : ''}>Final</option>
   </select>`;
 }
 function loadGoal() {
@@ -1957,34 +2123,33 @@ function loadGoal() {
 // ─── Streak ───────────────────────────────────────────────────────────────────
 // Tracks consecutive days on which a new application was actually added — not
 // consecutive days the tracker was merely opened, edited, or auto-ghosted.
-// updateStreak() is called only from the true "added something new" sites:
-// addEntry() (new-entry branch), quickAddSave(), and commitBulkAdd().
-function dateStrDaysAgo(n) {
-  // Calendar-safe: subtracts whole days, not 24h blocks, so it can't land on
-  // the wrong date across a daylight-saving transition.
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toDateString();
-}
-function updateStreak() {
-  const today = new Date().toDateString();
-  let data = {};
-  try { data = JSON.parse(localStorage.getItem(STREAK_KEY) || '{}'); } catch(e) {}
-  if (data.last === today) return; // already logged an application today
-  const yesterday = dateStrDaysAgo(1);
-  data.streak = (data.last === yesterday) ? (data.streak || 0) + 1 : 1;
-  data.best = Math.max(data.best || 0, data.streak);
-  data.last = today;
-  localStorage.setItem(STREAK_KEY, JSON.stringify(data));
-}
+// Streak is DERIVED from each entry's status history — the same source of
+// truth the heatmap uses (getAppliedDateCounts, defined near the heatmap
+// code below) — rather than tracked as a separate localStorage flag.
+// The old flag-based version only advanced from addEntry()/quickAddSave()/
+// commitBulkAdd(), so marking an existing "Plan" card as "Applied" via the
+// status dropdown (changeStatus) or by dragging it on the Kanban board
+// (onDrop) — both very normal ways to log an application — never updated
+// it, silently drifting out of sync with what the heatmap showed. Deriving
+// it directly means any status change, from anywhere in the app, is
+// reflected automatically and the two can never disagree again.
 function getStreak() {
-  try {
-    const data = JSON.parse(localStorage.getItem(STREAK_KEY) || '{}');
-    const today = new Date().toDateString();
-    const yesterday = dateStrDaysAgo(1);
-    if (data.last === today || data.last === yesterday) return data.streak || 0;
-    return 0;
-  } catch(e) { return 0; }
+  const counts = getAppliedDateCounts();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const cursor = new Date(today);
+  if (!counts[localDateKey(cursor)]) {
+    // Grace period: haven't applied yet today, but don't zero out a streak
+    // that's still alive from yesterday.
+    cursor.setDate(cursor.getDate() - 1);
+    if (!counts[localDateKey(cursor)]) return 0;
+  }
+  let streak = 0;
+  while (counts[localDateKey(cursor)]) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
 }
 
 // ─── Deadline helpers ─────────────────────────────────────────────────────────
@@ -2033,19 +2198,23 @@ function setSort(key) {
 }
 
 // ─── Binder rail (table view only) ────────────────────────────────────────────
-// Highlights matching rows in place rather than filtering them out — a quick
-// visual scan tool that sits alongside (not instead of) the term/company dropdowns.
+// Clicking a tab drives the same term/company filter state as the dropdowns
+// in the Filters popover, so the rail is just a second way to set the same
+// filter rather than a separate highlighting mechanism.
 function renderBinderRail() {
   const rail = document.getElementById('binder-rail');
   if (!rail) return;
   if (!entries.length) { rail.style.display = 'none'; return; }
   rail.style.display = '';
 
+  const ft = document.getElementById('filter-term').value;
+  const fc = document.getElementById('filter-company').value;
+
   const presentTerms = ['spring', 'summer', 'fall'].filter(t => entries.some(e => e.term === t));
   const termsSection = document.getElementById('binder-terms-section');
   termsSection.style.display = presentTerms.length ? '' : 'none';
   document.getElementById('binder-terms').innerHTML = presentTerms.map(t => {
-    const active = binderTab && binderTab.type === 'term' && binderTab.value === t ? 'active' : '';
+    const active = ft === t ? 'active' : '';
     const label = t.charAt(0).toUpperCase() + t.slice(1);
     return `<button class="binder-tab binder-tab-${t} ${active}" data-type="term" data-value="${t}" title="${label}">${termIcon[t] || ''} ${label}</button>`;
   }).join('');
@@ -2055,7 +2224,7 @@ function renderBinderRail() {
   const companiesSection = document.getElementById('binder-companies-section');
   companiesSection.style.display = companies.length ? '' : 'none';
   document.getElementById('binder-companies').innerHTML = companies.map(c => {
-    const active = binderTab && binderTab.type === 'company' && binderTab.value === c ? 'active' : '';
+    const active = fc === c ? 'active' : '';
     return `<button class="binder-tab binder-tab-company ${active}" data-type="company" data-value="${esc(c)}" title="${esc(c)}">${esc(c)}</button>`;
   }).join('');
 }
@@ -2067,16 +2236,10 @@ function handleBinderClick(event) {
 }
 
 function selectBinderTab(type, value) {
-  // Clicking the active tab again turns highlighting off — same toggle feel as a real binder tab.
-  binderTab = (binderTab && binderTab.type === type && binderTab.value === value) ? null : { type, value };
+  const sel = document.getElementById(type === 'term' ? 'filter-term' : 'filter-company');
+  // Clicking the already-active tab again turns the filter off — same toggle feel as a real binder tab.
+  sel.value = (sel.value === value) ? '' : value;
   render();
-}
-
-function binderRowClass(e) {
-  if (!binderTab) return '';
-  const match = binderTab.type === 'term' ? e.term === binderTab.value : e.company === binderTab.value;
-  if (!match) return 'row-dim';
-  return binderTab.type === 'term' ? `row-lit row-lit-${binderTab.value}` : 'row-lit row-lit-company';
 }
 
 // ─── Filter + sort ────────────────────────────────────────────────────────────
@@ -2278,7 +2441,7 @@ function renderInsights() {
   if (respToDecision) respToDecision.textContent = fmt(rt.medToDecision);
 
   const funnel = computeInterviewFunnel();
-  const funnelLabels = { interview: 'Reached Interview', oa: 'OA', phone: 'Phone Screen', onsite: 'Onsite/Final' };
+  const funnelLabels = { interview: 'Reached Interview', oa: 'Recruiter', phone: 'Technical', onsite: 'Final' };
   const funnelKeys = ['interview', 'oa', 'phone', 'onsite'];
   const funnelEl = document.getElementById('funnel-wrap');
   if (funnelEl) {
@@ -2328,21 +2491,81 @@ function syncStatusFromHistory(e) {
 
 function renderDataView() {
   const wrap = document.getElementById('data-entries-wrap');
+  const countEl = document.getElementById('data-count');
   if (!wrap) return;
   if (!entries.length) {
     wrap.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:1rem 0">No applications tracked yet — add one to see its history here.</div>';
+    if (countEl) countEl.textContent = '';
     return;
   }
   const q = (document.getElementById('data-search-input')?.value || '').trim().toLowerCase();
-  const list = entries
+  const fs = document.getElementById('data-filter-status')?.value || '';
+  const sortMode = document.getElementById('data-sort-sel')?.value || 'recent';
+  let list = entries
     .map((e, idx) => ({ e, idx }))
-    .filter(({ e }) => !q || (e.company || '').toLowerCase().includes(q) || (e.role || '').toLowerCase().includes(q))
-    .sort((a, b) => (a.e.company || '').localeCompare(b.e.company || ''));
+    .filter(({ e }) =>
+      (!q || (e.company || '').toLowerCase().includes(q) || (e.role || '').toLowerCase().includes(q)) &&
+      (!fs || e.status === fs));
+
+  if (sortMode === 'company-asc') list.sort((a, b) => (a.e.company || '').localeCompare(b.e.company || ''));
+  else if (sortMode === 'company-desc') list.sort((a, b) => (b.e.company || '').localeCompare(a.e.company || ''));
+  else if (sortMode === 'status') list.sort((a, b) =>
+    DATA_EDITABLE_STATUSES.indexOf(a.e.status) - DATA_EDITABLE_STATUSES.indexOf(b.e.status) ||
+    (a.e.company || '').localeCompare(b.e.company || ''));
+  else list.sort((a, b) => dataEntryRecentAt(b.e) - dataEntryRecentAt(a.e)); // 'recent' (default)
+
+  if (countEl) {
+    countEl.textContent = list.length === entries.length
+      ? `${entries.length} tracked`
+      : `${list.length} of ${entries.length} shown`;
+  }
+
   if (!list.length) {
     wrap.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:1rem 0">No matches.</div>';
+    updateDataExpandToggleLabel();
     return;
   }
   wrap.innerHTML = list.map(({ e, idx }) => renderDataEntryCard(e, idx)).join('');
+  updateDataExpandToggleLabel();
+}
+
+// Most recent history timestamp — used to sort by "recently updated" and to
+// show a quick "Updated <date>" hint on each collapsed card.
+function dataEntryRecentAt(e) {
+  const times = (e.history || []).map(h => h.at);
+  return times.length ? Math.max(...times) : 0;
+}
+
+// Cards default to collapsed (just company/role/status/last-updated) so a
+// long list stays scannable; this Set tracks which ones the user has opened
+// to edit history, and persists across re-renders until they collapse it.
+let openDataEntries = new Set();
+
+function toggleDataEntry(idx) {
+  if (openDataEntries.has(idx)) openDataEntries.delete(idx);
+  else openDataEntries.add(idx);
+  renderDataView();
+}
+
+function shownDataEntryIdxs() {
+  const wrap = document.getElementById('data-entries-wrap');
+  if (!wrap) return [];
+  return Array.from(wrap.querySelectorAll('[data-entry-idx]')).map(el => parseInt(el.dataset.entryIdx));
+}
+
+function toggleAllDataEntries() {
+  const idxs = shownDataEntryIdxs();
+  const allOpen = idxs.length > 0 && idxs.every(i => openDataEntries.has(i));
+  idxs.forEach(i => allOpen ? openDataEntries.delete(i) : openDataEntries.add(i));
+  renderDataView();
+}
+
+function updateDataExpandToggleLabel() {
+  const btn = document.getElementById('data-expand-toggle-btn');
+  if (!btn) return;
+  const idxs = shownDataEntryIdxs();
+  const allOpen = idxs.length > 0 && idxs.every(i => openDataEntries.has(i));
+  btn.textContent = allOpen ? '⤢ Collapse all' : '⤢ Expand all';
 }
 
 function renderDataEntryCard(e, idx) {
@@ -2350,24 +2573,55 @@ function renderDataEntryCard(e, idx) {
   const sorted = e.history.slice().sort((a, b) => a.at - b.at);
   const rowsHtml = sorted.map(h => dataHistRow(idx, e.history.indexOf(h), h)).join('');
   const label = statusLabel[e.status] || e.status;
+  const excluded = !!e.excludeFromTrend;
+  const stageSorted = (e.stageHistory || []).slice().sort((a, b) => a.at - b.at);
+  const stageRowsHtml = stageSorted.map(s => dataStageRow(idx, e.stageHistory.indexOf(s), s)).join('');
+  const isOpen = openDataEntries.has(idx);
+  const recentAt = dataEntryRecentAt(e);
   return `
-    <div class="data-entry-card">
-      <div class="data-entry-header">
-        <div>
+    <div class="data-entry-card${isOpen ? ' open' : ''}" data-entry-idx="${idx}">
+      <div class="data-entry-summary" onclick="toggleDataEntry(${idx})">
+        <span class="data-entry-caret">▸</span>
+        <div class="data-entry-summary-main">
           <div class="data-entry-company">${esc(e.company || '(no company)')}</div>
-          <div class="data-entry-role">${e.role ? esc(e.role) + ' · ' : ''}<span class="data-entry-status">${esc(label)}</span></div>
+          ${e.role ? `<div class="data-entry-role">${esc(e.role)}</div>` : ''}
         </div>
-        <div class="data-entry-actions">
+        <span class="badge badge-${e.status}">${esc(label)}</span>
+        <span class="data-entry-updated">${recentAt ? 'Updated ' + fmtDate(recentAt) : ''}</span>
+        <div class="data-entry-summary-actions" onclick="event.stopPropagation()">
           <button class="ctrl-btn small-copy" onclick="editEntry(${idx})" title="Edit company, role, deadline, notes, etc.">✎ Edit info</button>
           <button class="ctrl-btn small-copy" style="color:var(--red);border-color:var(--red)" onclick="del(${idx})" title="Delete this application entirely (undoable)">🗑 Delete</button>
         </div>
       </div>
-      <table class="data-hist-table">
-        <thead><tr><th>Status</th><th>Date</th><th></th></tr></thead>
-        <tbody>${rowsHtml}</tbody>
-      </table>
-      ${dataHistAddRow(idx)}
+      <div class="data-entry-body">
+        <label class="data-entry-exclude${excluded ? ' checked' : ''}" title="Keep this application in every other stat, but leave it out of the trend chart (e.g. a test entry or one you withdrew).">
+          <input type="checkbox" ${excluded ? 'checked' : ''} onchange="toggleExcludeFromTrend(${idx})">
+          Exclude from trend chart
+        </label>
+        <table class="data-hist-table">
+          <thead><tr><th>Status</th><th>Date</th><th></th></tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        ${dataHistAddRow(idx)}
+        <div class="data-stage-section">
+          <div class="data-stage-heading">Interview rounds</div>
+          <div class="data-stage-hint">Rounds don't need to be in order and none of them are required — skip straight to Final with nothing else logged if that's what happened, the diagram will connect straight across the gap.</div>
+          ${stageRowsHtml ? `<table class="data-hist-table">
+            <thead><tr><th>Round</th><th>Date</th><th></th></tr></thead>
+            <tbody>${stageRowsHtml}</tbody>
+          </table>` : ''}
+          ${dataStageAddRow(idx)}
+        </div>
+      </div>
     </div>`;
+}
+
+function toggleExcludeFromTrend(idx) {
+  const e = entries[idx];
+  if (!e) return;
+  e.excludeFromTrend = !e.excludeFromTrend;
+  save(); render();
+  showToast(e.excludeFromTrend ? 'Excluded from trend chart' : 'Included in trend chart again');
 }
 
 function dataHistRow(entryIdx, hIdx, h) {
@@ -2440,6 +2694,84 @@ function addDataHistRow(entryIdx) {
   showToast('Added history record');
 }
 
+// ─── Interview-round history editing (Data tab) ─────────────────────────────
+// Same pattern as the status-history editor above, applied to e.stageHistory
+// instead of e.history. Deliberately has no ordering constraint: a round can
+// be added, edited, or deleted independently of the others, and an entry can
+// have just a single "Final" record with nothing before it — the Sankey and
+// funnel already treat any gap in the sequence as "skipped", not an error.
+function syncInterviewStageFromHistory(e) {
+  if (!Array.isArray(e.stageHistory)) e.stageHistory = [];
+  e.stageHistory.sort((a, b) => a.at - b.at);
+  e.interviewStage = e.stageHistory.length ? e.stageHistory[e.stageHistory.length - 1].stage : '';
+}
+
+function dataStageRow(entryIdx, sIdx, s) {
+  const dateVal = localDateKey(new Date(s.at));
+  const options = INTERVIEW_STAGES.map(st =>
+    `<option value="${st}" ${st === s.stage ? 'selected' : ''}>${esc(interviewStageLabel[st] || st)}</option>`).join('');
+  return `<tr>
+    <td><select class="data-hist-select" onchange="commitDataStageRound(${entryIdx},${sIdx},this.value)">${options}</select></td>
+    <td><input type="date" class="hist-date-input" value="${dateVal}" onchange="commitDataStageDate(${entryIdx},${sIdx},this.value)"></td>
+    <td><button class="hist-clear-btn" title="Delete this round" onclick="deleteDataStageRow(${entryIdx},${sIdx})">✕</button></td>
+  </tr>`;
+}
+
+function dataStageAddRow(entryIdx) {
+  const todayVal = localDateKey(new Date());
+  const options = INTERVIEW_STAGES.map(st => `<option value="${st}">${esc(interviewStageLabel[st] || st)}</option>`).join('');
+  return `<div class="data-hist-add">
+    <span style="font-size:11.5px;color:var(--muted)">Add a round:</span>
+    <select id="data-add-stage-${entryIdx}" class="data-hist-select">${options}</select>
+    <input type="date" id="data-add-stage-date-${entryIdx}" class="hist-date-input" value="${todayVal}">
+    <button class="ctrl-btn small-copy" onclick="addDataStageRow(${entryIdx})">+ Add</button>
+  </div>`;
+}
+
+function commitDataStageRound(entryIdx, sIdx, newStage) {
+  const e = entries[entryIdx];
+  if (!e || !e.stageHistory || !e.stageHistory[sIdx]) return;
+  e.stageHistory[sIdx].stage = newStage;
+  syncInterviewStageFromHistory(e);
+  save(); render();
+  showToast('Round updated');
+}
+
+function commitDataStageDate(entryIdx, sIdx, rawDate) {
+  const e = entries[entryIdx];
+  if (!e || !e.stageHistory || !e.stageHistory[sIdx] || !rawDate) { render(); return; }
+  const newAt = new Date(rawDate + 'T12:00:00').getTime(); // noon local, avoids the UTC day-shift bug
+  if (Number.isNaN(newAt)) { render(); return; }
+  e.stageHistory[sIdx].at = newAt;
+  syncInterviewStageFromHistory(e);
+  save(); render();
+  showToast('Date updated');
+}
+
+function deleteDataStageRow(entryIdx, sIdx) {
+  const e = entries[entryIdx];
+  if (!e || !e.stageHistory || !e.stageHistory[sIdx]) return;
+  e.stageHistory.splice(sIdx, 1);
+  syncInterviewStageFromHistory(e);
+  save(); render();
+  showToast('Round deleted');
+}
+
+function addDataStageRow(entryIdx) {
+  const e = entries[entryIdx];
+  if (!e) return;
+  const stageSel = document.getElementById(`data-add-stage-${entryIdx}`);
+  const dateInput = document.getElementById(`data-add-stage-date-${entryIdx}`);
+  if (!stageSel || !dateInput || !dateInput.value) { showToast('Pick a date first'); return; }
+  const at = new Date(dateInput.value + 'T12:00:00').getTime();
+  if (Number.isNaN(at)) return;
+  if (!Array.isArray(e.stageHistory)) e.stageHistory = [];
+  e.stageHistory.push({ stage: stageSel.value, at });
+  syncInterviewStageFromHistory(e);
+  save(); render();
+  showToast('Added round');
+}
+
 // ─── Heatmap ─────────────────────────────────────────────────────────────────
 // Build a Y-M-D key from LOCAL date parts (not toISOString, which converts to
 // UTC and can shift entries added late at night onto the wrong calendar day).
@@ -2447,32 +2779,57 @@ function localDateKey(d) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
-const HEATMAP_WEEKS = 16;
+const HEATMAP_WEEKS_DEFAULT = 10;
+const HEATMAP_WEEKS_EXPANDED = 16;
+let HEATMAP_WEEKS = HEATMAP_WEEKS_DEFAULT;
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-function buildHeatmap() {
-  const grid = document.getElementById('heatmap-grid');
-  const dayLabelsEl = document.getElementById('heatmap-daylabels');
-  const monthsEl = document.getElementById('heatmap-months');
-  grid.innerHTML = '';
-  if (dayLabelsEl) dayLabelsEl.innerHTML = '';
-  if (monthsEl) monthsEl.innerHTML = '';
+// Swaps the heatmap window between the tight default and the expanded range,
+// then rebuilds. Keeps the title's week count and toggle label in sync.
+function toggleHeatmapRange() {
+  HEATMAP_WEEKS = (HEATMAP_WEEKS === HEATMAP_WEEKS_DEFAULT) ? HEATMAP_WEEKS_EXPANDED : HEATMAP_WEEKS_DEFAULT;
+  buildHeatmap();
+}
 
-  // build a map: local dateString -> count
-  // Count each entry on the day it actually became "Applied" (its first
-  // history record whose status isn't Plan), not the day it was added to
-  // the tracker. Entries still sitting in Plan haven't applied yet, so they
-  // don't contribute a square at all. Entries backfilled with only their
-  // current status (no explicit history) are counted on that single
-  // timestamp, same as everywhere else history is treated as authoritative.
+// Build a map: local dateString -> count of applications that day. Shared by
+// the heatmap, the trend chart, and the streak, so all three always agree
+// (unless the caller opts out excluded entries — see below).
+// Count each entry on the day it actually became "Applied" (its first
+// history record whose status isn't Plan), not the day it was added to
+// the tracker. Entries still sitting in Plan haven't applied yet, so they
+// don't contribute a square at all. Entries backfilled with only their
+// current status (no explicit history) are counted on that single
+// timestamp, same as everywhere else history is treated as authoritative.
+// Pass { skipExcluded: true } to leave out entries the user has flagged
+// with excludeFromTrend (currently only the trend chart does this — the
+// heatmap and streak intentionally still count every real application).
+function getAppliedDateCounts(opts) {
+  const skipExcluded = !!(opts && opts.skipExcluded);
   const counts = {};
   entries.forEach(e => {
+    if (skipExcluded && e.excludeFromTrend) return;
     ensureHistory(e);
     const appliedEvent = e.history.find(h => h.status !== 'plan');
     if (!appliedEvent) return;
     const key = localDateKey(new Date(appliedEvent.at));
     counts[key] = (counts[key] || 0) + 1;
   });
+  return counts;
+}
+
+function buildHeatmap() {
+  const grid = document.getElementById('heatmap-grid');
+  const dayLabelsEl = document.getElementById('heatmap-daylabels');
+  const monthsEl = document.getElementById('heatmap-months');
+  const titleEl = document.getElementById('heatmap-title-text');
+  const rangeBtn = document.getElementById('heatmap-range-toggle');
+  grid.innerHTML = '';
+  if (dayLabelsEl) dayLabelsEl.innerHTML = '';
+  if (monthsEl) monthsEl.innerHTML = '';
+  if (titleEl) titleEl.textContent = '📅 Application Activity — Last ' + HEATMAP_WEEKS + ' Weeks';
+  if (rangeBtn) rangeBtn.textContent = (HEATMAP_WEEKS === HEATMAP_WEEKS_DEFAULT) ? 'See more' : 'See less';
+
+  const counts = getAppliedDateCounts();
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -2575,28 +2932,22 @@ function buildTrendChart() {
   const wrap = document.getElementById('trend-chart');
   if (!wrap) return;
 
-  // Same fix as the heatmap: count each entry on the day it actually became
-  // Applied (its first history record whose status isn't Plan), not the day
-  // it was logged into the tracker. Entries still in Plan haven't applied
-  // yet and shouldn't move this line.
-  entries.forEach(ensureHistory);
-  const withDates = entries
-    .map(e => e.history.find(h => h.status !== 'plan'))
-    .filter(Boolean)
-    .map(h => new Date(h.at))
-    .sort((a, b) => a - b);
-  if (withDates.length === 0) {
+  const excludedCount = entries.filter(e => e.excludeFromTrend).length;
+  const noteEl = document.getElementById('trend-excluded-note');
+  if (noteEl) {
+    noteEl.textContent = excludedCount
+      ? `(${excludedCount} ${excludedCount === 1 ? 'entry' : 'entries'} excluded)`
+      : '';
+  }
+
+  // Same source as the heatmap and streak, minus anything flagged excludeFromTrend.
+  const counts = getAppliedDateCounts({ skipExcluded: true });
+  const days = Object.keys(counts).sort();
+  if (days.length === 0) {
     trendChartState = null;
     wrap.innerHTML = '<div class="trend-empty">Your cumulative applications will chart here once you add some.</div>';
     return;
   }
-
-  const counts = {};
-  withDates.forEach(dt => {
-    const key = localDateKey(dt);
-    counts[key] = (counts[key] || 0) + 1;
-  });
-  const days = Object.keys(counts).sort();
   let running = 0;
   const points = days.map(k => { running += counts[k]; return { date: k, dayCount: counts[k], total: running }; });
 
@@ -2710,6 +3061,67 @@ function hideHeatmapTooltip() {
   document.getElementById('heatmap-tooltip').style.display = 'none';
 }
 
+// ─── First-run / empty-app state ─────────────────────────────────────────────
+// Swaps stats/progress/analytics/extra-filters out for a single centered CTA
+// when there's nothing tracked yet, so a new user isn't greeted by a wall of
+// zeroed-out cards. Everything reappears automatically the moment there's ≥1 entry.
+function updateEmptyAppState() {
+  document.body.classList.toggle('app-empty', entries.length === 0);
+}
+
+// ─── Filters popover (priority/term/company/tag) ─────────────────────────────
+// Search + status stay inline in the controls row since those are what people
+// reach for most; the rest live in this popover to cut down on row 1 clutter.
+function toggleFiltersPopover(ev) {
+  if (ev) ev.stopPropagation();
+  document.getElementById('filters-popover').classList.toggle('open');
+}
+function closeFiltersPopover() {
+  const pop = document.getElementById('filters-popover');
+  if (pop) pop.classList.remove('open');
+}
+document.addEventListener('click', (ev) => {
+  const wrap = document.querySelector('.filters-popover-wrap');
+  if (wrap && !wrap.contains(ev.target)) closeFiltersPopover();
+});
+function clearExtraFilters() {
+  ['filter-priority', 'filter-term', 'filter-company', 'filter-tag'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  render();
+}
+// Badge on the "Filters" button showing how many of the popover's filters
+// (not search/status, which are already visible) are currently active.
+function updateFiltersBadge() {
+  const badge = document.getElementById('filters-badge');
+  if (!badge) return;
+  const count = ['filter-priority', 'filter-term', 'filter-company', 'filter-tag']
+    .filter(id => document.getElementById(id) && document.getElementById(id).value)
+    .length;
+  badge.textContent = count;
+  badge.style.display = count > 0 ? 'inline-flex' : 'none';
+}
+
+// ─── Analytics section (heatmap/trend/insights) collapse ────────────────────
+// Collapsed by default so the table is the landing view; remembers the user's
+// choice across sessions once they've opened it.
+const ANALYTICS_OPEN_KEY = 'intern_analytics_open';
+function toggleAnalytics() {
+  const body = document.getElementById('analytics-body');
+  const btn = document.getElementById('analytics-toggle-btn');
+  const open = !body.classList.contains('open');
+  body.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', String(open));
+  localStorage.setItem(ANALYTICS_OPEN_KEY, open ? '1' : '0');
+}
+function restoreAnalyticsState() {
+  if (localStorage.getItem(ANALYTICS_OPEN_KEY) === '1') {
+    document.getElementById('analytics-body').classList.add('open');
+    document.getElementById('analytics-toggle-btn').setAttribute('aria-expanded', 'true');
+  }
+}
+
 // ─── View toggle ──────────────────────────────────────────────────────────────
 function setView(v) {
   currentView = v;
@@ -2741,6 +3153,7 @@ function renderKanban() {
   const filtered = getFiltered();
   filtered.forEach(e => {
     const idx = entries.indexOf(e);
+    const pos = cols.indexOf(e.status);
     const card = document.createElement('div');
     card.className = 'kanban-card';
     card.draggable = true;
@@ -2755,20 +3168,15 @@ function renderKanban() {
       <button class="kanban-card-dup-btn" title="Copy as new (pre-fills company, term & priority for another role there)" draggable="false" onmousedown="event.stopPropagation()" onclick="event.stopPropagation(); duplicateEntry(${idx})">⧉</button>
       <div class="kanban-card-company">${e.company}</div>
       ${e.role ? `<div class="kanban-card-role">${e.role}</div>` : ''}
-      <div class="kanban-card-meta">
-        ${e.term ? `<span class="term-badge ${termInfo(e).cls}">${termInfo(e).text}</span>` : ''}
-        ${e.priority ? `<span class="pri-badge pri-${e.priority}">${e.priority === 'high' ? 'High' : e.priority === 'med' ? 'Med' : 'Low'}</span>` : ''}
-        ${e.deadline ? `<span class="deadline-text ${deadlineDisplay(e.deadline)?.cls || ''}">${deadlineDisplay(e.deadline)?.text || ''}</span>` : ''}
-      </div>
-      ${tagChipsHtml(e)}
-      ${referralBadgeHtml(e)}
+      ${e.term ? `<div class="kanban-card-meta"><span class="term-badge ${termInfo(e).cls}">${termInfo(e).text}</span></div>` : ''}
       ${interviewStageSelHtml(e, idx)}
-      ${milestoneChipsHtml(e, idx)}
-      <select class="kanban-card-move-sel" title="Move to a different status (keyboard/trackpad-friendly alternative to drag-and-drop)"
-              onmousedown="event.stopPropagation()" onclick="event.stopPropagation()"
-              onchange="event.stopPropagation(); changeStatus(${idx}, this.value)">
-        ${cols.map(s => `<option value="${s}" ${e.status === s ? 'selected' : ''}>Move to: ${statusLabel[s]}</option>`).join('')}
-      </select>
+      <div class="kanban-card-nav">
+        <button class="kanban-nav-btn" title="${pos > 0 ? 'Move to ' + statusLabel[cols[pos - 1]] : ''}" draggable="false"
+                onmousedown="event.stopPropagation()" onclick="event.stopPropagation(); moveKanbanCard(${idx}, -1)" ${pos <= 0 ? 'disabled' : ''}>‹</button>
+        <span class="kanban-nav-status">${statusLabel[e.status]}</span>
+        <button class="kanban-nav-btn" title="${pos < cols.length - 1 ? 'Move to ' + statusLabel[cols[pos + 1]] : ''}" draggable="false"
+                onmousedown="event.stopPropagation()" onclick="event.stopPropagation(); moveKanbanCard(${idx}, 1)" ${pos >= cols.length - 1 ? 'disabled' : ''}>›</button>
+      </div>
     `;
     card.addEventListener('dragstart', (ev) => {
       dragSrcIdx = idx;
@@ -2784,9 +3192,21 @@ function renderKanban() {
   });
 }
 
+// Moves a card to the previous/next status column (dir = -1 / 1), in the
+// same left-to-right column order as the board. This is the click-friendly
+// alternative to drag-and-drop that replaced the old "Move to:" dropdown.
+function moveKanbanCard(idx, dir) {
+  const cols = ['plan','applied','interview','ghosted','offer','rejected'];
+  const pos = cols.indexOf(entries[idx].status);
+  const next = pos + dir;
+  if (next < 0 || next >= cols.length) return;
+  changeStatus(idx, cols[next]);
+  showToast('Moved to ' + statusLabel[cols[next]]);
+}
+
 // Left/Right arrow moves the focused card to the previous/next Kanban column
 // (in the same left-to-right order as the board); Enter opens it for editing.
-// This plus the "Move to:" dropdown above make the board fully operable
+// This plus the ‹ › nav buttons on each card make the board fully operable
 // without drag-and-drop, for trackpad/tablet/keyboard-only use.
 function onKanbanCardKeydown(ev, idx, currentStatus, cols) {
   const pos = cols.indexOf(currentStatus);
@@ -2821,36 +3241,86 @@ function onDragLeave(ev) {
 // (a stage move to a later column) is tallied into an edge. Lateral/backward
 // moves (corrections, accidental drags) are skipped so the diagram reflects
 // genuine progress through the pipeline rather than every click.
-// Four columns: Planning -> Applied -> Interview -> Ghosted/Rejected/Offer/Still Active.
+//
+// "Plan" is deliberately left out of this diagram entirely: entries that
+// never made it past Plan haven't entered the pipeline yet, and for entries
+// that did apply, Plan is just discarded from their history rather than
+// shown as a stage - by the time something's applied, planning is over.
+//
+// The Interview stage is expanded into its tracked sub-stages (Recruiter ->
+// Technical -> Final, from each entry's stageHistory) wherever that
+// detail exists, falling back to a single generic "Interview" node for
+// entries where it doesn't (older entries, or ones where a sub-stage was
+// never logged) - so nothing is dropped for lack of detail.
+//
+// Columns are dynamic: a column only takes up horizontal space if at least
+// one entry actually reached a stage in it. If nobody's tracked Recruiter/
+// Technical/Final separately, those columns simply don't appear and the
+// diagram reads as a plain Applied -> Interview -> Outcome flow using the
+// full width, rather than reserving dead space for stages nothing ever
+// reaches.
+//
 // "active" is a synthetic status (never stored on an entry) standing in for
 // "hasn't reached a resolved outcome yet" - it lets Applied/Interview
 // opportunities that are just sitting there show up as a ribbon instead of
 // a dead-end bar, without pretending they've been Rejected/Ghosted/Offered.
-const SANKEY_COL = { plan: 1, applied: 2, interview: 3, ghosted: 4, rejected: 4, offer: 4, active: 4 };
-const SANKEY_ORDER = { 1: ['plan'], 2: ['applied'], 3: ['interview'], 4: ['rejected', 'offer', 'ghosted', 'active'] };
-const SANKEY_COLOR = {
-  plan: 'var(--muted)', applied: 'var(--blue)', interview: 'var(--amber)',
-  ghosted: 'var(--purple)', offer: 'var(--accent)', rejected: 'var(--red)', active: 'var(--muted)'
+const SANKEY_MAIN_COL = { applied: 1, interview: 2, ghosted: 3, rejected: 3, offer: 3 };
+const SANKEY_STAGE_COL = Object.fromEntries(INTERVIEW_STAGES.map((s, i) => [s, i + 1]));
+const SANKEY_COL = {
+  applied: 1,
+  interview_unspecified: 2, interview_oa: 2,
+  interview_phone: 3,
+  interview_onsite: 4,
+  rejected: 5, offer: 5, ghosted: 5, active: 5,
 };
+// Column membership + stable stacking order within each column.
+const SANKEY_COLUMN_DEFS = [
+  { order: ['applied'] },
+  { order: ['interview_unspecified', 'interview_oa'] },
+  { order: ['interview_phone'] },
+  { order: ['interview_onsite'] },
+  { order: ['rejected', 'offer', 'ghosted', 'active'] },
+];
+// Flat left-to-right rank of every possible node, used to keep ribbon
+// stacking stable and non-crossing regardless of which columns end up
+// present for a given user's data.
+const SANKEY_NODE_RANK = Object.fromEntries(
+  SANKEY_COLUMN_DEFS.flatMap(cd => cd.order).map((s, i) => [s, i])
+);
+// Each named interview round gets its own color so they're easy to tell
+// apart at a glance; an entry with no round logged falls back to the same
+// amber used for "Interview" everywhere else in the app.
+const SANKEY_COLOR = {
+  applied: 'var(--blue)',
+  interview_unspecified: 'var(--amber)',
+  interview_oa: 'var(--stage-recruiter)',
+  interview_phone: 'var(--stage-technical)',
+  interview_onsite: 'var(--stage-final)',
+  ghosted: 'var(--purple)', offer: 'var(--accent)', rejected: 'var(--red)', active: 'var(--muted)',
+};
+function sankeyLabel(status) {
+  if (status === 'interview_unspecified') return 'Interview';
+  if (status.indexOf('interview_') === 0) return interviewStageLabel[status.slice('interview_'.length)] || 'Interview';
+  return statusLabel[status] || status;
+}
 
 function renderSankey() {
   const wrap = document.getElementById('sankey-svg-wrap');
   const emptyEl = document.getElementById('sankey-empty');
   if (!entries.length) { wrap.innerHTML = ''; emptyEl.style.display = 'block'; return; }
 
-  // Build edges (applied -> interview -> ghosted/rejected/offer, forward-only)
-  // and track every stage each opportunity ever reached, so an entry that's
-  // still sitting in Applied (no onward move yet) still counts toward the
-  // Applied bar instead of only being counted once it moves on.
+  // Build edges (applied -> interview sub-stages -> ghosted/rejected/offer,
+  // forward-only) and track every stage each opportunity ever reached, so an
+  // entry that's still sitting in Applied (no onward move yet) still counts
+  // toward the Applied bar instead of only being counted once it moves on.
   //
   // Raw history can contain detours that were later corrected (e.g. dragged
   // to Interview by accident, then dragged back to Applied). We collapse each
   // entry's history down to the monotonic path that actually leads to its
   // current status, popping off any earlier stop that a later status
   // supersedes or reverts, so a corrected mistake doesn't leave a phantom
-  // stage or ribbon behind. Moving back to an untracked stage (e.g. Planning)
-  // clears all tracked progress, since it means the opportunity isn't
-  // considered applied anymore.
+  // stage or ribbon behind. Plan is stripped out entirely first (see note
+  // above); an entry whose history is only ever Plan is skipped altogether.
   //
   // Some entries only ever have a single history point (their current status) -
   // e.g. older entries backfilled before status-history tracking existed. We
@@ -2862,32 +3332,56 @@ function renderSankey() {
   entries.forEach(e => {
     ensureHistory(e);
     const rawSeq = [];
-    e.history.forEach(h => { if (!rawSeq.length || rawSeq[rawSeq.length - 1] !== h.status) rawSeq.push(h.status); });
+    e.history.forEach(h => {
+      if (h.status === 'plan') return; // Plan isn't part of this diagram
+      if (!rawSeq.length || rawSeq[rawSeq.length - 1] !== h.status) rawSeq.push(h.status);
+    });
+    if (!rawSeq.length) return; // never got past Plan - hasn't entered the pipeline
 
     let seq = [];
     rawSeq.forEach(s => {
-      const col = SANKEY_COL[s];
+      const col = SANKEY_MAIN_COL[s];
       if (col === undefined) { seq = []; return; }
-      while (seq.length && SANKEY_COL[seq[seq.length - 1]] >= col) seq.pop();
+      while (seq.length && SANKEY_MAIN_COL[seq[seq.length - 1]] >= col) seq.pop();
       seq.push(s);
     });
-    if (seq.length === 1 && SANKEY_COL[seq[0]] > 2) seq = ['applied', seq[0]];
+    if (seq.length === 1 && SANKEY_MAIN_COL[seq[0]] > 1) seq = ['applied', seq[0]];
+    if (!seq.length) return;
 
     // Still sitting in Applied or Interview with nothing since? Route it into
     // the synthetic "Still Active" bucket so it reads as an open ribbon
-    // rather than a bar with no outgoing flow.
-    const lastStage = seq[seq.length - 1];
-    if (lastStage === 'applied' || lastStage === 'interview') seq = seq.concat('active');
+    // rather than a bar with no outgoing flow. Captured before expansion,
+    // since "interview" here still means the main status, not a sub-stage.
+    const lastMain = seq[seq.length - 1];
+    const stillOpen = lastMain === 'applied' || lastMain === 'interview';
+
+    // Expand "interview" into its tracked sub-stages (Recruiter -> Technical -> Final),
+    // collapsed the same monotonic way as the main sequence above, falling
+    // back to a single generic node when no sub-stage was ever logged.
+    const expanded = [];
+    seq.forEach(s => {
+      if (s !== 'interview') { expanded.push(s); return; }
+      const subRaw = (e.stageHistory || []).map(h => h.stage).filter(st => SANKEY_STAGE_COL[st] !== undefined);
+      let subSeq = [];
+      subRaw.forEach(st => {
+        const c = SANKEY_STAGE_COL[st];
+        while (subSeq.length && SANKEY_STAGE_COL[subSeq[subSeq.length - 1]] >= c) subSeq.pop();
+        subSeq.push(st);
+      });
+      if (subSeq.length) subSeq.forEach(st => expanded.push('interview_' + st));
+      else expanded.push('interview_unspecified');
+    });
+    if (stillOpen) expanded.push('active');
 
     const seen = new Set();
-    seq.forEach(s => {
+    expanded.forEach(s => {
       if (SANKEY_COL[s] === undefined || seen.has(s)) return;
       seen.add(s);
       reached[s] = (reached[s] || 0) + 1;
     });
 
-    for (let i = 0; i < seq.length - 1; i++) {
-      const a = seq[i], b = seq[i + 1];
+    for (let i = 0; i < expanded.length - 1; i++) {
+      const a = expanded[i], b = expanded[i + 1];
       const ca = SANKEY_COL[a];
       const cb = SANKEY_COL[b];
       if (cb === undefined || ca === undefined || cb <= ca) continue;
@@ -2903,19 +3397,18 @@ function renderSankey() {
     return { source, target, value };
   });
 
-  const columns = [1, 2, 3, 4];
-  const colNodes = columns.map(c => {
-    const statuses = SANKEY_ORDER[c];
-    return statuses
-      .filter(s => (reached[s] || 0) > 0)
-      .map(s => ({ status: s, value: reached[s] }));
-  });
+  // Columns are dynamic: only ones with at least one reached node take up
+  // space, so an unused stage (e.g. nobody's ever logged a Recruiter round, or
+  // — now — nothing sitting in Plan) doesn't reserve dead space.
+  const colNodes = SANKEY_COLUMN_DEFS
+    .map(cd => cd.order.filter(s => (reached[s] || 0) > 0).map(s => ({ status: s, value: reached[s] })))
+    .filter(list => list.length > 0);
 
   const W = 880, H = 500;
   const padL = 44, padR = 44, padT = 26, padB = 16;
   const nodeW = 14, nodeGap = 20;
   const plotW = W - padL - padR, plotH = H - padT - padB;
-  const numCols = columns.length;
+  const numCols = colNodes.length;
 
   const maxColTotal = Math.max(1, ...colNodes.map(list => list.reduce((s, n) => s + n.value, 0)));
   const maxNodesInCol = Math.max(1, ...colNodes.map(list => list.length));
@@ -2928,7 +3421,7 @@ function renderSankey() {
     // (large gaps between Rejected/Offer/Ghosted) instead of clustering
     // tightly around the vertical center - that clustering was forcing their
     // incoming ribbons to converge into a cramped space and cross each other.
-    // Single-node columns (Plan/Applied/Interview) stay centered as before.
+    // Single-node columns (Applied, and any interview sub-stage on its own) stay centered as before.
     const gap = list.length > 1 ? Math.max(0, (plotH - nodesH) / (list.length - 1)) : 0;
     const totalH = nodesH + gap * Math.max(0, list.length - 1);
     let y = padT + (plotH - totalH) / 2;
@@ -2941,21 +3434,17 @@ function renderSankey() {
   });
 
   // Stable stacking order so repeated ribbons at a node don't jump around
-  // *and* so ribbons don't needlessly cross each other.
-  // Applied has four possible outgoing branches; stack them to mirror the
-  // final column's top-to-bottom order (Rejected, then Interview, then Offer,
-  // then Ghosted). Interview itself sits at rank 1 in that bundle, so its own
-  // outgoing ribbons (to Offer/Ghosted/Rejected) inherit rank 1 rather than
-  // being compared using Interview's node position - comparing raw node
-  // positions was the bug causing overlap: Applied is one tall bar, so its
-  // Ghosted branch (which exits near the *bottom* of that bar) was being
-  // compared using the bar's *top* y-coordinate, making it sort as if it
-  // exited near the top and crossing straight through Interview's ribbons.
-  const BRANCH_RANK = { rejected: 0, interview: 1, offer: 2, ghosted: 3, active: 4 };
+  // *and* so ribbons don't needlessly cross each other. Every node has a
+  // fixed left-to-right rank (SANKEY_NODE_RANK); edges are sorted primarily
+  // by their *target's* rank so a bundle's ribbons fan out in the same
+  // top-to-bottom order the destination column itself uses, and secondarily
+  // by source rank as a tiebreaker. This generalizes the original two-source
+  // (Applied/Interview) heuristic to however many interview sub-stages a
+  // given entry set actually uses.
   const edgeRank = ({ source, target }) => {
-    if (source === 'applied') return BRANCH_RANK[target] ?? 0;
-    if (source === 'interview') return 1 + (BRANCH_RANK[target] ?? 0) * 0.01;
-    return -1;
+    const t = SANKEY_NODE_RANK[target] ?? 0;
+    const s = SANKEY_NODE_RANK[source] ?? 0;
+    return t + s * 0.001;
   };
   edges.sort((a, b) => edgeRank(a) - edgeRank(b));
 
@@ -2995,8 +3484,8 @@ function renderSankey() {
     const isActive = target === 'active';
     const d = `M ${x1},${sy0.toFixed(1)} C ${midX.toFixed(1)},${sy0.toFixed(1)} ${midX.toFixed(1)},${ty0.toFixed(1)} ${x2},${ty0.toFixed(1)} `
             + `L ${x2},${ty1.toFixed(1)} C ${midX.toFixed(1)},${ty1.toFixed(1)} ${midX.toFixed(1)},${sy1.toFixed(1)} ${x1},${sy1.toFixed(1)} Z`;
-    const sourceLabel = statusLabel[source] || source;
-    const targetLabel = statusLabel[target] || target;
+    const sourceLabel = sankeyLabel(source);
+    const targetLabel = sankeyLabel(target);
     // Ribbons into "Still Active" are dashed and faded relative to real
     // outcomes (Rejected/Offer/Ghosted) - this hasn't resolved yet, so it
     // shouldn't visually read as one of the settled results.
@@ -3013,7 +3502,7 @@ function renderSankey() {
   let nodesSvg = '';
   Object.entries(nodePos).forEach(([status, p]) => {
     const color = SANKEY_COLOR[status] || 'var(--muted)';
-    const label = statusLabel[status] || status;
+    const label = sankeyLabel(status);
     const isActive = status === 'active';
     const cx = p.x + nodeW / 2;
     // Left column labels left-align and right column labels right-align (from
@@ -3055,11 +3544,13 @@ function onDrop(ev, newStatus) {
 
 // ─── Render table ─────────────────────────────────────────────────────────────
 function render() {
+  updateEmptyAppState();
   updateStats();
   renderInsights();
   buildHeatmap();
   populateCompanyFilter();
   renderBinderRail();
+  updateFiltersBadge();
   if (currentView === 'kanban') { renderKanban(); return; }
   if (currentView === 'sankey') { renderSankey(); return; }
   if (currentView === 'data') { renderDataView(); return; }
@@ -3086,9 +3577,8 @@ function render() {
       ? `<a href="${e.link}" target="_blank" style="color:var(--accent);font-size:13px;text-decoration:none;border-bottom:1px solid var(--accent-mid)">Open ↗</a>`
       : `<span style="color:var(--muted);font-size:12px">—</span>`;
     const isChecked = selectedRows.has(idx);
-    const rowClass = binderRowClass(e);
 
-    const mainRow = `<tr data-idx="${idx}" class="${rowClass}">
+    const mainRow = `<tr data-idx="${idx}">
       <td><input type="checkbox" class="row-check" ${isChecked ? 'checked' : ''} onchange="toggleRow(${idx}, this.checked)"></td>
       <td>
         <div class="company-name">${e.company}</div>
@@ -3098,8 +3588,9 @@ function render() {
       <td>${termHtml}</td>
       <td>${priHtml}</td>
       <td>${dlHtml}</td>
-      <td>
-        <select class="status-sel" onchange="changeStatus(${idx}, this.value)">
+      <td class="status-cell">
+        <span class="badge badge-${e.status} status-badge" tabindex="0" onclick="showStatusSelect(this)" onkeydown="if(event.key==='Enter'){showStatusSelect(this)}">${statusLabel[e.status]}</span>
+        <select class="status-sel" onchange="changeStatus(${idx}, this.value)" onblur="hideStatusSelect(this)">
           ${['plan','applied','interview','ghosted','offer','rejected'].map(s =>
             `<option value="${s}" ${e.status === s ? 'selected' : ''}>${statusLabel[s]}</option>`
           ).join('')}
@@ -3108,20 +3599,20 @@ function render() {
         ${milestoneChipsHtml(e, idx)}
       </td>
       <td>
-        <button class="icon-btn note-btn" title="Notes" onclick="toggleNotes(${idx})">${noteIcon}</button>
+        <button class="icon-btn note-btn" title="Notes" aria-label="Notes" onclick="toggleNotes(${idx})">${noteIcon}</button>
         ${e.notes ? `<span class="notes-preview">${e.notes}</span>` : ''}
         ${referralBadgeHtml(e)}
         ${resumeVersionHtml(e)}
       </td>
       <td>${linkHtml}</td>
       <td>
-        <button class="icon-btn" title="Edit" onclick="editEntry(${idx})">✎</button>
-        <button class="icon-btn note-btn" title="Copy as new (pre-fills company, term & priority for another role there)" onclick="duplicateEntry(${idx})">⧉</button>
-        <button class="icon-btn" title="Delete" onclick="del(${idx})">✕</button>
+        <button class="icon-btn" title="Edit" aria-label="Edit" onclick="editEntry(${idx})">✎</button>
+        <button class="icon-btn note-btn" title="Copy as new (pre-fills company, term & priority for another role there)" aria-label="Copy as new (pre-fills company, term & priority for another role there)" onclick="duplicateEntry(${idx})">⧉</button>
+        <button class="icon-btn" title="Delete" aria-label="Delete" onclick="del(${idx})">✕</button>
       </td>
     </tr>`;
 
-    const notesRow = hasNotes ? `<tr class="notes-row ${rowClass}"><td colspan="9">
+    const notesRow = hasNotes ? `<tr class="notes-row"><td colspan="9">
       <div class="notes-box">
         <textarea style="width:100%;border:none;background:transparent;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--accent);resize:none;outline:none;min-height:50px" 
           placeholder="Add notes, contacts, tips…"
@@ -3351,11 +3842,15 @@ function toggleForm() {
 function resetAddFormFields() {
   ['f-company','f-role','f-link','f-deadline','f-notes','f-term-year',
    'f-ref-name','f-ref-email','f-ref-linkedin','f-resume-version'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('f-status').value = 'plan';
+  // Defaults to "Applied" rather than "Plan" — by the time most people open
+  // this form they've already submitted the application, so that should be
+  // the default rather than something to remember to switch every time.
+  document.getElementById('f-status').value = 'applied';
   document.getElementById('f-priority').value = 'med';
   document.getElementById('f-term').value = '';
   document.getElementById('f-interview-stage').value = '';
   renderTagPicker([]);
+  setFormMoreDetails(false);
   onFormStatusChange();
   dismissDupWarning();
 }
@@ -3375,10 +3870,26 @@ function renderTagPicker(selected) {
 function getSelectedTags() {
   return Array.from(document.querySelectorAll('#f-tag-picker input:checked')).map(i => i.value);
 }
+// Tags, referral contact, interview round, and resume version live behind
+// this toggle (see .form-more-body CSS) so the form defaults to just the
+// fields almost every entry needs. Switching status to Interview force-opens
+// it (never force-closes) so the newly-relevant round field isn't hidden.
+function setFormMoreDetails(open) {
+  const body = document.getElementById('form-more-body');
+  const btn = document.getElementById('form-more-toggle');
+  if (!body || !btn) return;
+  body.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', String(open));
+}
+function toggleFormMoreDetails() {
+  const body = document.getElementById('form-more-body');
+  setFormMoreDetails(!body.classList.contains('open'));
+}
 function onFormStatusChange() {
   const wrap = document.getElementById('f-interview-stage-wrap');
   const status = document.getElementById('f-status').value;
   wrap.style.display = status === 'interview' ? '' : 'none';
+  if (status === 'interview') setFormMoreDetails(true);
 }
 
 function openAddForm() {
@@ -3417,6 +3928,11 @@ function editEntry(idx) {
   document.getElementById('f-resume-version').value = e.resumeVersion || '';
   document.getElementById('f-interview-stage').value = e.interviewStage || '';
   renderTagPicker(e.tags || []);
+  // Open "More details" up front if this entry actually has any of that data,
+  // so editing doesn't hide fields that are already filled in.
+  const hasMoreDetails = !!((e.tags && e.tags.length) || e.referralName || e.referralEmail ||
+    e.referralLinkedIn || e.resumeVersion || e.interviewStage);
+  setFormMoreDetails(hasMoreDetails);
   onFormStatusChange();
   document.getElementById('form-title').textContent = 'Edit internship';
   document.getElementById('form-save-btn').textContent = 'Save changes';
@@ -3440,6 +3956,7 @@ function duplicateEntry(idx) {
   document.getElementById('f-term').value = e.term || '';
   document.getElementById('f-term-year').value = e.termYear || '';
   renderTagPicker(e.tags || []);
+  if (e.tags && e.tags.length) setFormMoreDetails(true);
   document.getElementById('form-title').textContent = 'New role at ' + e.company;
   document.getElementById('form-save-btn').textContent = 'Save internship';
   const f = document.getElementById('add-form');
@@ -3574,7 +4091,7 @@ function addEntry(force) {
   recordHistory(entry, status);
   if (entry.interviewStage) recordStageHistory(entry, entry.interviewStage);
   entries.unshift(entry);
-  save(); updateStreak(); render();
+  save(); render();
   resetAddFormFields();
   closeAddForm();
   showToast('Added ' + company + '!');
@@ -3590,6 +4107,7 @@ function del(i) {
   if (!removed) return;
   preDeleteSnapshot = entries.slice();
   openNotes.delete(i);
+  openDataEntries.delete(i);
   selectedRows.delete(i);
   entries.splice(i, 1);
   save(); render();
@@ -3618,6 +4136,21 @@ function changeStatus(i, val) {
   onStatusChange(i, val, prev);
 }
 
+// Click-to-edit for the table's status badge: the badge is what's shown by
+// default, and clicking it swaps in the real <select> (focused so the
+// dropdown opens right away). Blurring without picking anything just reverts
+// to the badge — same click-to-edit affordance the notes field uses.
+function showStatusSelect(badge) {
+  const cell = badge.closest('.status-cell');
+  cell.classList.add('editing');
+  const sel = cell.querySelector('.status-sel');
+  sel.focus();
+}
+function hideStatusSelect(sel) {
+  const cell = sel.closest('.status-cell');
+  if (cell) cell.classList.remove('editing');
+}
+
 function toggleNotes(i) {
   if (openNotes.has(i)) openNotes.delete(i);
   else openNotes.add(i);
@@ -3643,44 +4176,6 @@ const rejectionMessages = [
 function showRejectionToast() {
   const msg = rejectionMessages[Math.floor(Math.random() * rejectionMessages.length)];
   showToast(msg, 3800);
-}
-
-// ─── Quick-add (FAB) ──────────────────────────────────────────────────────────
-function openQuickAdd() {
-  const m = document.getElementById('quick-modal');
-  m.classList.add('open');
-  setTimeout(() => document.getElementById('q-company').focus(), 100);
-}
-function closeQuickAdd(ev) {
-  if (ev && ev.target !== document.getElementById('quick-modal')) return;
-  document.getElementById('quick-modal').classList.remove('open');
-  document.getElementById('q-company').value = '';
-  document.getElementById('q-role').value = '';
-  document.getElementById('q-term').value = '';
-}
-function quickAddSave() {
-  const company = document.getElementById('q-company').value.trim();
-  if (!company) { document.getElementById('q-company').focus(); return; }
-  const entry = {
-    company,
-    role: document.getElementById('q-role').value.trim(),
-    status: 'applied',
-    priority: 'med',
-    term: document.getElementById('q-term').value,
-    termYear: '',
-    link: '',
-    deadline: '',
-    notes: '',
-    added: Date.now()
-  };
-  recordHistory(entry, 'applied');
-  entries.unshift(entry);
-  save(); updateStreak(); render();
-  document.getElementById('quick-modal').classList.remove('open');
-  document.getElementById('q-company').value = '';
-  document.getElementById('q-role').value = '';
-  document.getElementById('q-term').value = '';
-  showToast('✅ Applied to ' + company + ' — logged!');
 }
 
 // ─── Bulk paste ────────────────────────────────────────────────────────────────
@@ -3961,7 +4456,7 @@ function commitBulkAdd() {
     recordHistory(entry, status);
     entries.unshift(entry);
   });
-  save(); updateStreak(); render();
+  save(); render();
   closeBulkPaste();
   showToast('Added ' + validRows.length + ' internship' + (validRows.length === 1 ? '' : 's') + '!');
   if (validRows.length >= 3) confetti();
@@ -3982,10 +4477,10 @@ document.addEventListener('keydown', (ev) => {
 
   if (ev.key === 'Escape') {
     document.getElementById('add-form').classList.remove('open');
-    document.getElementById('quick-modal').classList.remove('open');
     document.getElementById('bulk-modal').classList.remove('open');
     document.getElementById('bulk-deadline-modal').classList.remove('open');
     document.getElementById('shortcuts-overlay').classList.remove('open');
+    closeFiltersPopover();
     clearSelection();
     return;
   }
@@ -4010,9 +4505,6 @@ document.addEventListener('keydown', (ev) => {
     ev.preventDefault();
     document.getElementById('shortcuts-overlay').classList.remove('open');
     openBulkPaste();
-  } else if (ev.key === 'e' || ev.key === 'E') {
-    ev.preventDefault();
-    exportCSV();
   } else if (ev.key === 'a' || ev.key === 'A') {
     ev.preventDefault();
     const allChecked = document.getElementById('check-all').checked;
@@ -4073,14 +4565,7 @@ function handleAddFormKeydown(ev) {
   }
 }
 
-// Close quick modal on Enter in q-role
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('q-role').addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter') quickAddSave();
-  });
-  document.getElementById('q-company').addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter') document.getElementById('q-role').focus();
-  });
   document.getElementById('add-form').addEventListener('keydown', handleAddFormKeydown);
   document.getElementById('goal-input').addEventListener('change', function() {
     localStorage.setItem(GOAL_KEY, this.value);
@@ -4088,32 +4573,30 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.pushToCloud) window.pushToCloud();
   });
   setSort('priority');
+
+  // Kanban board only scrolls horizontally, but a plain mouse wheel only
+  // reports vertical delta — without this, wheeling over the board does
+  // nothing on a normal mouse (only trackpads / shift+wheel worked before).
+  // Translate vertical wheel movement into horizontal scroll instead.
+  const kanbanView = document.getElementById('kanban-view');
+  if (kanbanView) {
+    kanbanView.addEventListener('wheel', (ev) => {
+      if (ev.deltaY === 0) return;
+      // Let a card's own drag/scroll or a genuinely horizontal gesture
+      // (deltaX already dominant, e.g. trackpad swipe) pass through untouched.
+      if (Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) return;
+      ev.preventDefault();
+      kanbanView.scrollLeft += ev.deltaY;
+    }, { passive: false });
+  }
 });
 
-// ─── Export CSV ───────────────────────────────────────────────────────────────
-function exportCSV() {
-  if (!entries.length) { showToast('Nothing to export yet'); return; }
-  const headers = ['Company','Role','Status','Interview Round','Priority','Term','Deadline','Tags','Referral Name','Referral Email','Referral LinkedIn','Resume Version','Notes','Link'];
-  const rows = entries.map(e => [
-    e.company, e.role || '', statusLabel[e.status] || '', interviewStageLabel[e.interviewStage] || '',
-    e.priority || '', termFullLabel(e), e.deadline || '', (e.tags || []).join('; '),
-    e.referralName || '', e.referralEmail || '', e.referralLinkedIn || '', e.resumeVersion || '',
-    (e.notes || '').replace(/,/g,'|'), e.link || ''
-  ]);
-  const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
-  const a = document.createElement('a');
-  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
-  a.download = 'internships_' + new Date().toISOString().slice(0,10) + '.csv';
-  a.click();
-  showToast('CSV exported! (For status history + full fidelity, use ⬆Backup for a JSON export instead)');
-}
-
 // ─── JSON Backup / Restore ──────────────────────────────────────────────────
-// Full round-trip backup: unlike the CSV export, this keeps status history,
-// milestone chips, tags, referral contacts, and app settings (goal, streak,
-// ghost threshold) — everything needed to fully reconstruct the tracker if
-// localStorage is ever cleared. Cloud sync credentials are deliberately left
-// out so a shared/exported backup file can't leak your Firebase config.
+// Full round-trip backup: keeps status history, milestone chips, tags,
+// referral contacts, and app settings (goal, streak, ghost threshold) —
+// everything needed to fully reconstruct the tracker if localStorage is
+// ever cleared. Cloud sync credentials are deliberately left out so a
+// shared/exported backup file can't leak your Firebase config.
 const BACKUP_VERSION = 1;
 function exportBackup() {
   const payload = {
@@ -4122,7 +4605,7 @@ function exportBackup() {
     exportedAt: new Date().toISOString(),
     entries: entries,
     goal: localStorage.getItem(GOAL_KEY) || '',
-    streak: (() => { try { return JSON.parse(localStorage.getItem(STREAK_KEY) || 'null'); } catch (e) { return null; } })(),
+    streak: getStreak(), // informational only — always recomputed from entries on load, never restored
     ghostDays: getGhostDays(),
   };
   const json = JSON.stringify(payload, null, 2);
@@ -4168,7 +4651,7 @@ function importBackup(evt) {
       const gi = document.getElementById('goal-input');
       if (gi) gi.value = data.goal;
     }
-    if (data.streak) localStorage.setItem(STREAK_KEY, JSON.stringify(data.streak));
+    // streak is derived from entries[].history on every render, so nothing to restore here
     if (data.ghostDays) {
       localStorage.setItem(GHOST_DAYS_KEY, String(data.ghostDays));
       const gd = document.getElementById('ghost-days');
@@ -4176,7 +4659,7 @@ function importBackup(evt) {
     }
     entries.forEach(normalizeMilestones);
     entries.forEach(ensureHistory);
-    save(); updateStreak(); render();
+    save(); render();
     showToast(`Restored ${n} entries from backup`);
   };
   reader.readAsText(file);
@@ -4229,6 +4712,7 @@ load();
 loadGoal();
 document.getElementById('ghost-days').value = getGhostDays();
 document.getElementById('app-masthead').textContent = APP_OWNER + ' · ' + APP_VERSION;
+restoreAnalyticsState();
 render();
 checkCaptureParams();
 // Re-check for newly-stale applications periodically for tabs left open a long time.

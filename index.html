@@ -3722,26 +3722,58 @@ function closeCaptureModal(ev) {
 }
 
 // Best-effort split of a job-page <title> into a company guess + role guess.
-// Handles the common patterns: "Role - Company", "Company - Role | Careers",
-// "Role at Company". Always leaves the raw title recoverable so a bad guess
-// is a one-click fix in the form, never a silent wrong entry.
+// Tries the known-company list first (your tracked companies + the aerospace
+// list), since exact matches there are far more reliable than guessing from
+// punctuation. Falls back to a "Role at Company" / "Role - Company" pattern
+// split only if no known company appears in the title.
 function guessCompanyRoleFromTitle(rawTitle) {
   let t = (rawTitle || '').trim();
-  t = t.replace(/\s*[\|\-–—]\s*(careers?|jobs?|job application|apply( now)?|hiring)\s*$/i, '').trim();
-  const atMatch = t.match(/^(.*?)\s+at\s+([A-Z][\w&.,' ]{1,40})$/i);
-  if (atMatch) {
-    return { role: atMatch[1].trim(), company: atMatch[2].trim() };
+  t = t.replace(/\s*[\|\-–—]\s*(careers?|jobs?|job application|apply( now)?|hiring|job details?)\s*$/i, '').trim();
+
+  // 1. Try matching a known company name as a whole word inside the title.
+  const known = getCompanySource().slice().sort((a, b) => b.length - a.length); // longest first
+  for (const c of known) {
+    const re = new RegExp('(^|[^a-z0-9])' + c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^a-z0-9])', 'i');
+    const m = t.match(re);
+    if (m) {
+      const role = t.replace(re, '$1$2')
+        .replace(/\s*[\|\-–—:]\s*/g, ' ')
+        .replace(/\s+\b(at|for|with)\s*$/i, '') // leftover connector word when company was "Role at Company"
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+      return { role: role || t, company: c };
+    }
   }
+
+  // 2. "Role at Company"
+  const atMatch = t.match(/^(.*?)\s+at\s+([A-Z][\w&.,' ]{1,40})$/i);
+  if (atMatch) return { role: atMatch[1].trim(), company: atMatch[2].trim() };
+
+  // 3. Fall back to splitting on punctuation; shortest segment is usually the
+  // company name (e.g. "Propulsion Test Engineer Intern - Varda").
   const parts = t.split(/\s*[\|\-–—]\s*/).map(s => s.trim()).filter(Boolean);
   if (parts.length >= 2) {
-    // Shortest segment (by word count) is usually the company name;
-    // the rest is the role/title.
     let shortest = parts[0];
     parts.forEach(p => { if (p.split(' ').length < shortest.split(' ').length) shortest = p; });
     const role = parts.filter(p => p !== shortest).join(' – ');
     return { role: role || t, company: shortest };
   }
   return { role: t, company: '' };
+}
+
+// Guesses term (fall/spring/summer) + 4-digit year from the page title or URL.
+// Looks for the season word and a nearby year separately since postings phrase
+// this many different ways ("Summer 2027 Intern", "2027 Fall Internship", etc.)
+function guessTermFromText(text) {
+  const t = (text || '');
+  const seasonMatch = t.match(/\b(fall|autumn|spring|summer|winter)\b/i);
+  const yearMatch = t.match(/\b(20[2-3][0-9])\b/);
+  let term = '';
+  if (seasonMatch) {
+    const s = seasonMatch[1].toLowerCase();
+    term = s === 'autumn' ? 'fall' : (s === 'winter' ? '' : s); // no "winter" option in the form
+  }
+  return { term, year: yearMatch ? yearMatch[1] : '' };
 }
 
 // Checked once at boot. If the bookmarklet sent capture params, pre-fill and
@@ -3752,11 +3784,14 @@ function checkCaptureParams() {
   const title = params.get('title') || '';
   const link = params.get('link') || '';
   const guess = guessCompanyRoleFromTitle(title);
+  const termGuess = guessTermFromText(title + ' ' + link);
   openAddForm();
   document.getElementById('f-company').value = guess.company;
   document.getElementById('f-role').value = guess.role;
   document.getElementById('f-link').value = link;
-  showToast('Captured from job page — double-check company/role, then save');
+  if (termGuess.term) document.getElementById('f-term').value = termGuess.term;
+  if (termGuess.year) document.getElementById('f-term-year').value = termGuess.year;
+  showToast('Captured from job page — double-check company/role/term, then save');
   history.replaceState({}, '', location.pathname + location.hash);
 }
 

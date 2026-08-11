@@ -1257,6 +1257,11 @@
 </head>
 <body>
 
+<div id="viewing-as-banner" style="display:none; align-items:center; justify-content:space-between; gap:12px; padding:10px 16px; background:#3730A3; color:#fff; font-size:13px; position:sticky; top:0; z-index:500;">
+  <span id="viewing-as-label"></span>
+  <button onclick="returnToOwnData()" style="background:#fff; color:#3730A3; border:none; border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; cursor:pointer;">Return to my data</button>
+</div>
+
 <!-- HEADER -->
 <header>
   <div class="header-top">
@@ -1265,7 +1270,7 @@
         Internship Tracker
         <em>Your career launchpad</em>
       </div>
-      <div id="app-masthead" style="color:rgba(255,255,255,0.55); font-size:11px; letter-spacing:0.03em; margin-top:6px;"></div>
+      <div id="app-masthead" onclick="openMasterDashboard()" style="color:rgba(255,255,255,0.55); font-size:11px; letter-spacing:0.03em; margin-top:6px; cursor:pointer;"></div>
     </div>
     <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
       <div class="cloud-badge" onclick="openCloudModal()" title="Cloud sync settings">
@@ -1944,6 +1949,23 @@ Spring 2027 Engineering Intern - Undergraduate"></textarea>
   </div>
 </div>
 
+<!-- MASTER DASHBOARD MODAL (Naveen-only, triggered by clicking the masthead) -->
+<div class="cloud-modal-overlay" id="master-dashboard-modal" onclick="masterDashboardBgClick(event)">
+  <div class="cloud-modal-box" style="max-width:480px;">
+    <div class="cloud-modal-header">
+      <div class="cloud-modal-title">🗂️ Master Dashboard</div>
+      <button class="cloud-modal-close" onclick="closeMasterDashboard()">✕</button>
+    </div>
+    <div class="cloud-modal-sub">
+      <span id="master-dashboard-count"></span> synced this tracker via cloud sign-in.
+    </div>
+    <select id="master-user-select" onchange="onMasterUserSelect(this.value)" style="width:100%; padding:9px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:13px;">
+      <option value="">— choose a user —</option>
+    </select>
+    <div id="master-dashboard-body" style="max-height:50vh; overflow-y:auto;"></div>
+  </div>
+</div>
+
 <script>
 let entries = [];
 let sortKey = 'priority';
@@ -1957,7 +1979,7 @@ let editIdx = null; // set while the add-form is being used to edit an existing 
 // Bump this on every deployed change — shown in the header so it's obvious
 // (e.g. after a GitHub Pages push) whether the live site is running the
 // latest version or a stale cached copy.
-const APP_VERSION = 'v1.31';
+const APP_VERSION = 'v1.33';
 const APP_OWNER = 'Naveen Koshy';
 
 const STORAGE_KEY = 'intern_tracker_v2';
@@ -4883,8 +4905,9 @@ setInterval(() => { checkGhosting(); render(); }, 60 * 60 * 1000);
 // console/service-account access — that's normal and unavoidable for anyone
 // who owns the backing project, not a bug in this app's rules.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // TODO(Naveen): paste your project's web config here (Project settings > General > Your apps).
 // This value is safe to ship in client code — it's a public identifier, not a secret.
@@ -4898,13 +4921,54 @@ const firebaseConfig = {
   appId: "1:115504304426:web:1eacaa824b386500b0ce53"
 };
 
-/* Suggested Firestore rule (Firestore Database > Rules in the console):
+// TODO(Naveen): Firebase console > App Check > Apps > register this web app
+// with the "reCAPTCHA v3" provider, then paste the site key it gives you here.
+// Once App Check is enforced (App Check > APIs > Cloud Firestore > Enforce),
+// requests that don't carry a valid App Check token get rejected before they
+// ever reach Firestore/Auth — this is what stops someone from copy-pasting
+// firebaseConfig into their own script and hammering your quota directly.
+const RECAPTCHA_V3_SITE_KEY = "PASTE_YOUR_RECAPTCHA_V3_SITE_KEY_HERE";
+
+// TODO(Naveen): the Google account(s) allowed to open the master dashboard
+// (click the masthead / your name in the header). These are stored as
+// SHA-256 hashes, NOT plaintext — this file is public on GitHub Pages, and
+// hashing means a page-source viewer can't just read your email addresses
+// off it. The hash is only used client-side to decide whether to *show* the
+// dashboard UI; the actual data access is enforced server-side by the
+// Firestore rule below, which you paste into the Firebase console (with the
+// real plaintext emails) — that rule is never part of this public file.
+//
+// To regenerate a hash for a new email, run this in any browser console:
+//   crypto.subtle.digest('SHA-256', new TextEncoder().encode('you@example.com'))
+//     .then(b => console.log([...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')));
+const MASTER_EMAIL_HASHES = [
+  "2d2c4bc404d36313b6a78f16bc4283d063dad757c7ff2451f929ad32113a3fb0", // nkoshy2@illinois.edu
+  "a4158d8d7a59f13a65e641dc406e5e9619049a27c8ad69b9954705a6fa0a36f5"  // nkoshy73@gmail.com
+];
+
+async function isMasterEmail(email) {
+  if (!email || !window.crypto?.subtle) return false;
+  const bytes = new TextEncoder().encode(email.trim().toLowerCase());
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return MASTER_EMAIL_HASHES.includes(hex);
+}
+
+/* Suggested Firestore rule (Firestore Database > Rules in the console).
+   Fill in YOUR_EMAIL_1 / YOUR_EMAIL_2 with your real addresses ONLY in the
+   console — never put your real email in this HTML file, since it's public.
 
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /users/{uid} {
+      // Owners can always read/write their own doc.
       allow read, write: if request.auth != null && request.auth.uid == uid;
+      // Master accounts can read (but not write) every user's doc, for the
+      // dashboard. request.auth.token.email comes from Firebase's verified
+      // ID token, not anything the client can spoof.
+      allow read: if request.auth != null
+                   && request.auth.token.email in ['YOUR_EMAIL_1', 'YOUR_EMAIL_2'];
     }
   }
 }
@@ -4932,6 +4996,14 @@ function setInlineMsg(text, cls) {
 function initFirebase() {
   if (app) return;
   app = initializeApp(firebaseConfig);
+  if (RECAPTCHA_V3_SITE_KEY && !RECAPTCHA_V3_SITE_KEY.startsWith('PASTE_')) {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(RECAPTCHA_V3_SITE_KEY),
+      isTokenAutoRefreshEnabled: true
+    });
+  } else {
+    console.warn('[AppCheck] RECAPTCHA_V3_SITE_KEY not set — App Check is inactive. See TODO near firebaseConfig.');
+  }
   auth = getAuth(app);
   cloudDb = getFirestore(app);
   onAuthStateChanged(auth, (user) => {
@@ -4952,6 +5024,7 @@ function subscribeToUserDoc(uid) {
   setCloudStatus('Connecting…', 'connecting');
   const ref = doc(cloudDb, 'users', uid);
   cloudUnsub = onSnapshot(ref, (snap) => {
+    if (viewingUid) return; // master is browsing someone else's data — don't overwrite the view
     if (!snap.exists()) { setCloudStatus('Synced (waiting for data)', 'on'); return; }
     const data = snap.data();
     applyingRemote = true;
@@ -4978,6 +5051,7 @@ function subscribeToUserDoc(uid) {
 }
 
 window.pushToCloud = function () {
+  if (viewingUid) return; // never write while viewing someone else's data (master dashboard)
   if (!currentUser || !cloudDb || applyingRemote) return;
   clearTimeout(pushDebounce);
   pushDebounce = setTimeout(async () => {
@@ -4986,7 +5060,9 @@ window.pushToCloud = function () {
       await setDoc(doc(cloudDb, 'users', currentUser.uid), {
         entries: entries,
         goal: document.getElementById('goal-input')?.value || '',
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        ownerEmail: currentUser.email || '',
+        ownerName: currentUser.displayName || ''
       });
       setCloudStatus('Synced ✓', 'on');
     } catch (e) {
@@ -5046,6 +5122,136 @@ window.closeCloudModal = function () {
 
 window.cloudModalBgClick = function (ev) {
   if (ev.target === document.getElementById('cloud-modal')) closeCloudModal();
+};
+
+// ---- Master dashboard (Naveen-only) ----------------------------------
+// Clicking the masthead (your name in the header) checks whether the
+// signed-in account matches one of MASTER_EMAIL_HASHES. If so, it pulls
+// every user's doc from the `users` collection into a dropdown; picking a
+// user swaps the live page over to their data, READ-ONLY. pushToCloud is
+// blocked the whole time you're viewing someone else's data, so nothing you
+// do while browsing their tracker can ever overwrite their real doc.
+let masterUsersCache = {}; // uid -> raw firestore doc data
+let viewingUid = null;     // set while looking at someone else's data
+let ownEntriesBackup = null;
+let ownGoalBackup = null;
+
+window.openMasterDashboard = async function () {
+  initFirebase();
+  if (currentUser) {
+    if (await isMasterEmail(currentUser.email)) {
+      loadMasterDashboard();
+    } else {
+      setMasterMsg('Signed in as ' + currentUser.email + ' — this account isn\'t authorized for the dashboard.');
+    }
+    return;
+  }
+  try {
+    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(auth, provider);
+    if (await isMasterEmail(result.user.email)) {
+      loadMasterDashboard();
+    } else {
+      setMasterMsg('Signed in as ' + result.user.email + ' — this account isn\'t authorized for the dashboard.');
+    }
+  } catch (e) {
+    console.error('[MasterDashboard] sign-in failed:', e);
+  }
+};
+
+function setMasterMsg(text) {
+  document.getElementById('master-dashboard-modal').classList.add('open');
+  document.getElementById('master-user-select').style.display = 'none';
+  document.getElementById('master-dashboard-body').innerHTML =
+    '<div style="padding:20px 0; color:var(--muted); font-size:13px;">' + text + '</div>';
+}
+
+async function loadMasterDashboard() {
+  const modal = document.getElementById('master-dashboard-modal');
+  const select = document.getElementById('master-user-select');
+  const body = document.getElementById('master-dashboard-body');
+  modal.classList.add('open');
+  select.style.display = '';
+  body.innerHTML = '<div style="padding:20px 0; color:var(--muted); font-size:13px;">Loading…</div>';
+  try {
+    const snap = await getDocs(collection(cloudDb, 'users'));
+    masterUsersCache = {};
+    const rows = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      masterUsersCache[d.id] = data;
+      rows.push({
+        uid: d.id,
+        label: data.ownerName || data.ownerEmail || d.id,
+        email: data.ownerEmail || '',
+        count: Array.isArray(data.entries) ? data.entries.length : 0
+      });
+    });
+    rows.sort((a, b) => a.label.localeCompare(b.label));
+    document.getElementById('master-dashboard-count').textContent = rows.length + ' user' + (rows.length === 1 ? '' : 's');
+    select.innerHTML = '<option value="">— choose a user —</option>' + rows.map((r) =>
+      `<option value="${escapeHtml(r.uid)}">${escapeHtml(r.label)} (${r.count})</option>`
+    ).join('');
+    select.value = viewingUid || '';
+    body.innerHTML = viewingUid
+      ? '<div style="padding:12px 0; color:var(--muted); font-size:13px;">Currently viewing <strong>' + escapeHtml(masterUsersCache[viewingUid]?.ownerName || masterUsersCache[viewingUid]?.ownerEmail || viewingUid) + '</strong>\'s data, read-only. Pick another user above, or use "Return to my data" in the banner.</div>'
+      : '<div style="padding:12px 0; color:var(--muted); font-size:13px;">Pick a user above to load their tracker on this page (read-only — your changes won\'t save to their account).</div>';
+  } catch (e) {
+    console.error('[MasterDashboard] load failed:', e);
+    select.style.display = 'none';
+    body.innerHTML = '<div style="padding:20px 0; color:#B3261E; font-size:13px;">Couldn\'t load users — check that the Firestore rule\'s master-read emails match your account, and that App Check (if enforced) is configured for this domain.</div>';
+  }
+}
+
+window.onMasterUserSelect = function (uid) {
+  if (!uid) return;
+  const data = masterUsersCache[uid];
+  if (!data) return;
+  if (!viewingUid) {
+    // First switch away from your own data this session — stash it so
+    // "Return to my data" can restore it exactly.
+    ownEntriesBackup = entries;
+    ownGoalBackup = document.getElementById('goal-input')?.value || '';
+  }
+  viewingUid = uid;
+  entries = Array.isArray(data.entries) ? data.entries : [];
+  if (typeof normalizeMilestones === 'function') entries.forEach(normalizeMilestones);
+  if (typeof ensureHistory === 'function') entries.forEach(ensureHistory);
+  if (typeof checkGhosting === 'function') checkGhosting();
+  const gi = document.getElementById('goal-input');
+  if (gi) gi.value = data.goal || '';
+  if (typeof render === 'function') render();
+  closeMasterDashboard();
+  showViewingBanner(data.ownerName || data.ownerEmail || uid);
+};
+
+function showViewingBanner(label) {
+  const bar = document.getElementById('viewing-as-banner');
+  document.getElementById('viewing-as-label').textContent = 'Viewing ' + label + '\'s data — read-only, changes here won\'t be saved to their account.';
+  bar.style.display = 'flex';
+}
+
+window.returnToOwnData = function () {
+  if (ownEntriesBackup) entries = ownEntriesBackup;
+  const gi = document.getElementById('goal-input');
+  if (gi) gi.value = ownGoalBackup || '';
+  viewingUid = null;
+  ownEntriesBackup = null;
+  ownGoalBackup = null;
+  if (typeof render === 'function') render();
+  document.getElementById('viewing-as-banner').style.display = 'none';
+};
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+window.closeMasterDashboard = function () {
+  document.getElementById('master-dashboard-modal').classList.remove('open');
+};
+
+window.masterDashboardBgClick = function (ev) {
+  if (ev.target === document.getElementById('master-dashboard-modal')) closeMasterDashboard();
 };
 
 document.addEventListener('DOMContentLoaded', () => {

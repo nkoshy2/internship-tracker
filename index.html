@@ -1979,7 +1979,7 @@ let editIdx = null; // set while the add-form is being used to edit an existing 
 // Bump this on every deployed change — shown in the header so it's obvious
 // (e.g. after a GitHub Pages push) whether the live site is running the
 // latest version or a stale cached copy.
-const APP_VERSION = 'v1.34';
+const APP_VERSION = 'v1.35';
 const APP_OWNER = 'Naveen Koshy';
 
 const STORAGE_KEY = 'intern_tracker_v2';
@@ -4979,6 +4979,19 @@ let applyingRemote = false;
 let pushDebounce = null;
 let currentUser = null;
 
+// Backfills ownerName/ownerEmail on docs that predate the master dashboard
+// (or whose Google display name changed since). Runs on every snapshot, but
+// only writes when something's actually out of date, so it's a no-op for
+// everyone already current — no repeated writes, no extra quota cost.
+function maybePatchIdentity(uid, data) {
+  if (!currentUser || currentUser.uid !== uid || viewingUid) return;
+  const wantName = currentUser.displayName || '';
+  const wantEmail = currentUser.email || '';
+  if (data.ownerName === wantName && data.ownerEmail === wantEmail) return;
+  setDoc(doc(cloudDb, 'users', uid), { ownerName: wantName, ownerEmail: wantEmail }, { merge: true })
+    .catch((e) => console.error('[CloudSync] identity patch failed:', e));
+}
+
 function setCloudStatus(text, cls) {
   const el = document.getElementById('cloud-status');
   if (!el) return;
@@ -5054,6 +5067,7 @@ function subscribeToUserDoc(uid) {
     if (typeof render === 'function') render();
     applyingRemote = false;
     setCloudStatus(syncedLabel(), 'on');
+    maybePatchIdentity(uid, data);
   }, (err) => {
     console.error('[CloudSync] snapshot error:', err);
     setCloudStatus('Sync error', 'error');

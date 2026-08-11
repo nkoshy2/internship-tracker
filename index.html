@@ -1042,6 +1042,29 @@
   }
   .shortcut-desc { color: var(--muted); font-size: 13px; }
 
+  /* WELCOME TOUR MODAL — reuses the shortcuts-overlay look, shown once per browser */
+  .welcome-box { width: 460px; max-width: 92vw; text-align: left; }
+  .welcome-step-icon { font-size: 1.8rem; margin-bottom: 0.5rem; }
+  .welcome-step-title { font-family: 'DM Serif Display', serif; font-size: 1.15rem; margin-bottom: 0.35rem; }
+  .welcome-step-desc { color: var(--muted); font-size: 13.5px; line-height: 1.5; margin-bottom: 1.1rem; }
+  .welcome-dots { display: flex; gap: 6px; justify-content: center; margin: 0.9rem 0 1.1rem; }
+  .welcome-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); transition: background 0.15s, transform 0.15s; }
+  .welcome-dot.active { background: var(--accent); transform: scale(1.3); }
+  .welcome-actions { display: flex; justify-content: space-between; align-items: center; }
+  .welcome-skip { background: none; border: none; color: var(--muted); font-size: 13px; cursor: pointer; text-decoration: underline; }
+
+  /* SHORTCUTS HINT — small one-time nudge pointing at the shortcuts trigger */
+  .shortcuts-hint {
+    position: fixed; bottom: 22px; right: 22px; z-index: 2500;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    padding: 10px 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    font-size: 13px; color: var(--text); display: flex; align-items: center; gap: 10px;
+    opacity: 0; transform: translateY(8px); pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+  }
+  .shortcuts-hint.show { opacity: 1; transform: translateY(0); pointer-events: all; }
+  .shortcuts-hint button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; padding: 0 2px; }
+
   /* DUPLICATE WARNING */
   .dup-warning {
     background: var(--amber-bg);
@@ -1275,6 +1298,19 @@
     <div class="first-run-actions">
       <button class="ctrl-btn primary" onclick="toggleForm()" title="Add internship (N)">+ Add your first internship</button>
       <button class="ctrl-btn" onclick="openBulkPaste()" title="Paste a list of companies/roles (B)">📋 Bulk paste a list</button>
+    </div>
+    <div style="margin-top:10px;">
+      <button class="ctrl-btn" onclick="loadSampleData()" title="Load a few fake entries to explore the app, then clear them anytime" style="font-size:13px; opacity:0.8;">👀 Not ready to add real data? Try it with sample data</button>
+    </div>
+  </div>
+
+  <!-- SAMPLE DATA BANNER — shown only while sample data is active -->
+  <div class="first-run-card" id="sample-data-banner" style="display:none; border-color: var(--amber, #d9a441);">
+    <div class="first-run-icon">🧪</div>
+    <div class="first-run-title">You're viewing sample data</div>
+    <div class="first-run-sub">This is fake data so you can explore the pipeline, heatmap, and Kanban views. Nothing here is saved to your real tracker.</div>
+    <div class="first-run-actions">
+      <button class="ctrl-btn primary" onclick="clearSampleData()">Clear sample data &amp; start fresh</button>
     </div>
   </div>
 
@@ -1839,6 +1875,17 @@ Spring 2027 Engineering Intern - Undergraduate"></textarea>
 </div>
 
 <!-- SHORTCUTS OVERLAY -->
+<!-- WELCOME TOUR — shown once per browser on first visit -->
+<div class="shortcuts-overlay" id="welcome-overlay" onclick="closeWelcomeBg(event)">
+  <div class="shortcuts-box welcome-box" id="welcome-box"></div>
+</div>
+
+<!-- SHORTCUTS HINT — one-time nudge toward the "?" shortcuts overlay -->
+<div class="shortcuts-hint" id="shortcuts-hint">
+  <span>💡 Press <strong>?</strong> anytime to see keyboard shortcuts</span>
+  <button onclick="dismissShortcutsHint()" title="Dismiss">✕</button>
+</div>
+
 <div class="shortcuts-overlay" id="shortcuts-overlay" onclick="closeShortcuts(event)">
   <div class="shortcuts-box">
     <div class="shortcuts-title">
@@ -1870,51 +1917,29 @@ Spring 2027 Engineering Intern - Undergraduate"></textarea>
       <button class="cloud-modal-close" onclick="closeCloudModal()">✕</button>
     </div>
     <div class="cloud-modal-sub">
-      Sync this tracker across browsers, profiles, and computers using a free Firebase project.
-      One-time setup: create a project at <a href="https://console.firebase.google.com" target="_blank" rel="noopener">console.firebase.google.com</a>,
-      enable <strong>Firestore Database</strong>, then paste your web app config below.
-      Use the <strong>same Sync Key</strong> on every device you want linked together.
+      Sign in to sync this tracker across browsers, profiles, and computers. No setup needed,
+      your data is saved to your own private account and only you can read or write it.
     </div>
 
-    <div class="cloud-security-note">
-      <strong>⚠️ Security note</strong>
-      Your Firebase config and Sync Key are stored in this browser's localStorage and are visible in plain text
-      (e.g. via DevTools, or in a JSON backup you export). Anyone who obtains your Sync Key can read and overwrite
-      this data, because there's no login step — just matching keys. Use a long, unguessable Sync Key (not your name),
-      never share it, and lock down your Firestore database with rules that scope access to a single document instead
-      of leaving the whole database open. Suggested starting rule for your project's <strong>Firestore &gt; Rules</strong> tab:
-    </div>
-    <div class="cloud-rules-box" id="cloud-rules-box">rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /trackers/{syncKey} {
-      allow read, write: if syncKey.size() >= 20;
-    }
-  }
-}</div>
-    <button class="ctrl-btn small-copy" type="button" onclick="copyCloudRules()">Copy rules snippet</button>
-
-    <div class="cloud-field-label" style="margin-top:14px">Firebase config (paste the object from your project settings)</div>
-    <textarea class="cloud-textarea" id="cloud-config-input" placeholder='{
-  apiKey: "...",
-  authDomain: "...",
-  projectId: "...",
-  storageBucket: "...",
-  messagingSenderId: "...",
-  appId: "..."
-}'></textarea>
-
-    <div class="cloud-field-label">Sync key (use the same one on every device — keep it long &amp; random, not a guessable phrase)</div>
-    <div style="display:flex;gap:8px;align-items:center;">
-      <input type="text" class="cloud-input" id="cloud-synckey-input" placeholder="e.g. 8f2a1c9e-4b7d-4e2a-9c3f-1a2b3c4d5e6f" style="flex:1;" />
-      <button class="ctrl-btn small-copy" type="button" onclick="generateSyncKey()" title="Generate a long random key">🎲 Generate</button>
+    <div id="cloud-signed-out-view">
+      <button class="btn-cloud-save" id="google-signin-btn" onclick="handleGoogleSignIn()" style="width:100%; display:flex; align-items:center; justify-content:center; gap:10px;">
+        <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.98v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.98A9 9 0 0 0 0 9c0 1.45.35 2.83.98 4.03l2.97-2.33z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .98 4.97l2.97 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>
+        Sign in with Google
+      </button>
+      <div class="cloud-inline-msg" id="cloud-inline-msg"></div>
     </div>
 
-    <div class="cloud-inline-msg" id="cloud-inline-msg"></div>
-
-    <div class="cloud-modal-footer">
-      <button class="btn-cloud-disconnect" onclick="disconnectCloud()">Disconnect</button>
-      <button class="btn-cloud-save" onclick="handleSaveCloudConfig()">Connect &amp; Sync</button>
+    <div id="cloud-signed-in-view" style="display:none;">
+      <div style="display:flex; align-items:center; gap:10px; padding:10px 0;">
+        <img id="cloud-user-photo" src="" alt="" style="width:32px;height:32px;border-radius:50%;display:none;" />
+        <div>
+          <div id="cloud-user-name" style="font-weight:600;font-size:14px;"></div>
+          <div id="cloud-user-email" style="color:var(--muted);font-size:12px;"></div>
+        </div>
+      </div>
+      <div class="cloud-modal-footer">
+        <button class="btn-cloud-disconnect" onclick="handleSignOut()">Sign out</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1932,7 +1957,7 @@ let editIdx = null; // set while the add-form is being used to edit an existing 
 // Bump this on every deployed change — shown in the header so it's obvious
 // (e.g. after a GitHub Pages push) whether the live site is running the
 // latest version or a stale cached copy.
-const APP_VERSION = 'v1.28';
+const APP_VERSION = 'v1.31';
 const APP_OWNER = 'Naveen Koshy';
 
 const STORAGE_KEY = 'intern_tracker_v2';
@@ -3067,7 +3092,60 @@ function hideHeatmapTooltip() {
 // zeroed-out cards. Everything reappears automatically the moment there's ≥1 entry.
 function updateEmptyAppState() {
   document.body.classList.toggle('app-empty', entries.length === 0);
+  const isSample = localStorage.getItem(SAMPLE_KEY) === '1';
+  const firstRunCard = document.getElementById('first-run-card');
+  const sampleBanner = document.getElementById('sample-data-banner');
+  if (firstRunCard) firstRunCard.style.display = (entries.length === 0 && !isSample) ? '' : 'none';
+  if (sampleBanner) sampleBanner.style.display = isSample ? '' : 'none';
 }
+
+// ─── Sample / "try it" data ───────────────────────────────────────────────────
+// Lets a brand-new user see the app populated (kanban, heatmap, sankey, stats)
+// before committing real data. Sample entries are flagged with SAMPLE_KEY in
+// localStorage rather than tagged on each entry, so clearing is a clean wipe
+// back to zero rather than a filtered delete. Never pushed to cloud sync while
+// sample mode is on, so it can't overwrite a signed-in user's real synced data.
+const SAMPLE_KEY = 'intern_sample_mode';
+function buildSampleEntries() {
+  const daysAgo = (n) => Date.now() - n * 86400000;
+  const mk = (company, role, status, days, extra) => {
+    const e = Object.assign({
+      company, role, status, priority: 'med', term: 'Summer', termYear: '2027',
+      link: '', deadline: '', notes: '', tags: [], referralName: '', referralEmail: '',
+      referralLinkedIn: '', resumeVersion: '', interviewStage: '', added: daysAgo(days),
+    }, extra || {});
+    ensureHistory(e);
+    e.history = [{ status: 'applied', at: daysAgo(days) }];
+    if (status === 'interview' || status === 'offer') e.history.push({ status: 'interview', at: daysAgo(Math.max(days - 4, 0)) });
+    if (status === 'offer') e.history.push({ status: 'offer', at: daysAgo(Math.max(days - 8, 0)) });
+    if (status !== 'applied') e.history.push({ status, at: daysAgo(Math.max(days - 2, 0)) });
+    normalizeMilestones(e);
+    return e;
+  };
+  return [
+    mk('Varda Space Industries', 'Propulsion Intern', 'interview', 6, { priority: 'high', tags: ['Propulsion'] }),
+    mk('SpaceX', 'Test Engineering Intern', 'applied', 3, { priority: 'high' }),
+    mk('Blue Origin', 'Avionics Intern', 'offer', 14, { priority: 'high', tags: ['Avionics'] }),
+    mk('Rocket Lab', 'Structures Intern', 'ghosted', 35, { priority: 'med' }),
+    mk('Anduril', 'Manufacturing Intern', 'rejected', 20, { priority: 'low' }),
+    mk('Firefly Aerospace', 'GNC Intern', 'plan', 1, { priority: 'med', tags: ['GNC'] }),
+  ];
+}
+window.loadSampleData = function () {
+  entries = buildSampleEntries();
+  localStorage.setItem(SAMPLE_KEY, '1');
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  checkGhosting();
+  render();
+  showToast('Loaded sample data — explore away, nothing here is real');
+};
+window.clearSampleData = function () {
+  entries = [];
+  localStorage.removeItem(SAMPLE_KEY);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  render();
+  showToast('Sample data cleared');
+};
 
 // ─── Filters popover (priority/term/company/tag) ─────────────────────────────
 // Search + status stay inline in the controls row since those are what people
@@ -4471,6 +4549,76 @@ function closeShortcuts(ev) {
   document.getElementById('shortcuts-overlay').classList.remove('open');
 }
 
+// ─── Welcome tour ─────────────────────────────────────────────────────────────
+// Shown once per browser (localStorage flag), before the person has any real
+// context on what this app does. Kept short — 4 steps — since a long tour on
+// first load just gets clicked through without reading.
+const WELCOME_SEEN_KEY = 'intern_welcome_seen';
+const WELCOME_STEPS = [
+  { icon: '🚀', title: 'Welcome to the Internship Tracker', desc: "Track every application in one place — status, deadlines, referrals, and how your pipeline is trending over time. Let's take a 30-second look around." },
+  { icon: '➕', title: 'Add applications your way', desc: 'Use "+ Add" for one at a time, or "Bulk paste" to drop in a whole list of companies/roles at once and review before adding.' },
+  { icon: '📊', title: 'Views that fit how you think', desc: 'Switch between Table, Kanban board, and Flow (Sankey) views to see your pipeline as a list, a board, or a funnel — whichever helps you spot what needs attention.' },
+  { icon: '☁️', title: 'Your data, synced or local', desc: "Sign in with Google (top-right ☁️) to sync across devices, or skip it and everything just stays in this browser. Either way, it's yours." },
+];
+let welcomeStepIdx = 0;
+function renderWelcomeStep() {
+  const box = document.getElementById('welcome-box');
+  if (!box) return;
+  const step = WELCOME_STEPS[welcomeStepIdx];
+  const isLast = welcomeStepIdx === WELCOME_STEPS.length - 1;
+  box.innerHTML = `
+    <div class="welcome-step-icon">${step.icon}</div>
+    <div class="welcome-step-title">${esc(step.title)}</div>
+    <div class="welcome-step-desc">${esc(step.desc)}</div>
+    <div class="welcome-dots">${WELCOME_STEPS.map((_, i) => `<div class="welcome-dot ${i === welcomeStepIdx ? 'active' : ''}"></div>`).join('')}</div>
+    <div class="welcome-actions">
+      <button class="welcome-skip" onclick="closeWelcomeTour()">Skip</button>
+      <button class="ctrl-btn primary" onclick="advanceWelcomeTour()">${isLast ? "Let's go" : 'Next'}</button>
+    </div>`;
+}
+function advanceWelcomeTour() {
+  if (welcomeStepIdx >= WELCOME_STEPS.length - 1) { closeWelcomeTour(); return; }
+  welcomeStepIdx++;
+  renderWelcomeStep();
+}
+function closeWelcomeTour() {
+  localStorage.setItem(WELCOME_SEEN_KEY, '1');
+  document.getElementById('welcome-overlay').classList.remove('open');
+  maybeShowShortcutsHint();
+}
+function closeWelcomeBg(ev) {
+  if (ev.target !== document.getElementById('welcome-overlay')) return;
+  closeWelcomeTour();
+}
+function maybeShowWelcomeTour() {
+  if (localStorage.getItem(WELCOME_SEEN_KEY) === '1') { maybeShowShortcutsHint(); return; }
+  welcomeStepIdx = 0;
+  renderWelcomeStep();
+  document.getElementById('welcome-overlay').classList.add('open');
+}
+
+// ─── Shortcuts hint chip ──────────────────────────────────────────────────────
+// A quiet one-time nudge toward the "?" shortcuts overlay, shown a few seconds
+// after the welcome tour closes (or on load if the tour was already seen) so
+// it doesn't compete with the tour for attention. Never reshown once dismissed.
+const SHORTCUTS_HINT_SEEN_KEY = 'intern_shortcuts_hint_seen';
+function maybeShowShortcutsHint() {
+  if (localStorage.getItem(SHORTCUTS_HINT_SEEN_KEY) === '1') return;
+  setTimeout(() => {
+    const hint = document.getElementById('shortcuts-hint');
+    if (hint) hint.classList.add('show');
+  }, 2500);
+  setTimeout(dismissShortcutsHint, 10000); // auto-dismiss so it doesn't linger forever
+}
+function dismissShortcutsHint() {
+  localStorage.setItem(SHORTCUTS_HINT_SEEN_KEY, '1');
+  const hint = document.getElementById('shortcuts-hint');
+  if (hint) hint.classList.remove('show');
+}
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(maybeShowWelcomeTour, 400);
+});
+
 document.addEventListener('keydown', (ev) => {
   const tag = document.activeElement.tagName;
   const isInput = ['INPUT','TEXTAREA','SELECT'].includes(tag);
@@ -4480,6 +4628,7 @@ document.addEventListener('keydown', (ev) => {
     document.getElementById('bulk-modal').classList.remove('open');
     document.getElementById('bulk-deadline-modal').classList.remove('open');
     document.getElementById('shortcuts-overlay').classList.remove('open');
+    if (document.getElementById('welcome-overlay').classList.contains('open')) closeWelcomeTour();
     closeFiltersPopover();
     clearSelection();
     return;
@@ -4712,6 +4861,8 @@ load();
 loadGoal();
 document.getElementById('ghost-days').value = getGhostDays();
 document.getElementById('app-masthead').textContent = APP_OWNER + ' · ' + APP_VERSION;
+const cloudOwnerEl = document.getElementById('cloud-owner-name');
+if (cloudOwnerEl) cloudOwnerEl.textContent = APP_OWNER;
 restoreAnalyticsState();
 render();
 checkCaptureParams();
@@ -4721,20 +4872,48 @@ setInterval(() => { checkGhosting(); render(); }, 60 * 60 * 1000);
 </script>
 
 <script type="module">
-// ─── Cloud Sync (Firebase Firestore) ─────────────────────────────────────────
+// ─── Cloud Sync (Firebase Auth + Firestore, single shared project) ──────────
+// Replaces the old "paste your own Firebase project + sync key" flow. Every
+// user signs into ONE shared Firebase project (owned/administered by
+// APP_OWNER) with Google, and their data is stored at users/{their-uid}.
+// Firestore rules restrict client-side read/write to request.auth.uid == uid,
+// so users can't read each other's data through the app. The project OWNER
+// still has full access to every document via the Firebase console or the
+// Admin SDK, since security rules only govern client-SDK access, not
+// console/service-account access — that's normal and unavoidable for anyone
+// who owns the backing project, not a bug in this app's rules.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, setDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-const CLOUD_KEY = 'intern_cloud_config';
-let cloudDb = null;
-let cloudUnsub = null;
+// TODO(Naveen): paste your project's web config here (Project settings > General > Your apps).
+// This value is safe to ship in client code — it's a public identifier, not a secret.
+// Security is enforced by the Firestore rules below, not by hiding this object.
+const firebaseConfig = {
+  apiKey: "AIzaSyBMzIP8XrGHCxBiPiQwBwT8oR3una8A8v0",
+  authDomain: "internship-tracker-16d8e.firebaseapp.com",
+  projectId: "internship-tracker-16d8e",
+  storageBucket: "internship-tracker-16d8e.firebasestorage.app",
+  messagingSenderId: "115504304426",
+  appId: "1:115504304426:web:1eacaa824b386500b0ce53"
+};
+
+/* Suggested Firestore rule (Firestore Database > Rules in the console):
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
+*/
+
+let app = null, auth = null, cloudDb = null, cloudUnsub = null;
 let applyingRemote = false;
 let pushDebounce = null;
-
-function getCloudConfig() {
-  try { return JSON.parse(localStorage.getItem(CLOUD_KEY) || 'null'); } catch (e) { return null; }
-}
+let currentUser = null;
 
 function setCloudStatus(text, cls) {
   const el = document.getElementById('cloud-status');
@@ -4750,52 +4929,61 @@ function setInlineMsg(text, cls) {
   el.className = 'cloud-inline-msg ' + (cls || '');
 }
 
-async function initCloud() {
-  const cfg = getCloudConfig();
-  if (!cfg || !cfg.firebaseConfig || !cfg.syncKey) { setCloudStatus('Not connected', 'off'); return; }
-  try {
-    setCloudStatus('Connecting…', 'connecting');
-    const app = initializeApp(cfg.firebaseConfig, 'intern-tracker-' + Date.now());
-    const auth = getAuth(app);
-    await signInAnonymously(auth);
-    cloudDb = getFirestore(app);
-    const ref = doc(cloudDb, 'trackers', cfg.syncKey);
-    if (cloudUnsub) cloudUnsub();
-    cloudUnsub = onSnapshot(ref, (snap) => {
-      if (!snap.exists()) { setCloudStatus('Synced (waiting for data)', 'on'); return; }
-      const data = snap.data();
-      applyingRemote = true;
-      if (Array.isArray(data.entries)) {
-        entries = data.entries;
-        if (typeof normalizeMilestones === 'function') entries.forEach(normalizeMilestones);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-      }
-      if (typeof data.goal === 'string') {
-        localStorage.setItem(GOAL_KEY, data.goal);
-        const gi = document.getElementById('goal-input');
-        if (gi) gi.value = data.goal;
-      }
-      if (typeof render === 'function') render();
-      applyingRemote = false;
-      setCloudStatus('Synced ✓', 'on');
-    }, (err) => {
-      console.error('[CloudSync] snapshot error:', err);
-      setCloudStatus('Sync error', 'error');
-    });
-  } catch (e) {
-    console.error('[CloudSync] init failed:', e);
-    setCloudStatus('Connection failed', 'error');
-  }
+function initFirebase() {
+  if (app) return;
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  cloudDb = getFirestore(app);
+  onAuthStateChanged(auth, (user) => {
+    currentUser = user;
+    if (user) {
+      subscribeToUserDoc(user.uid);
+      updateSignedInUI(user);
+    } else {
+      if (cloudUnsub) { cloudUnsub(); cloudUnsub = null; }
+      setCloudStatus('Not connected', 'off');
+      updateSignedOutUI();
+    }
+  });
+}
+
+function subscribeToUserDoc(uid) {
+  if (cloudUnsub) cloudUnsub();
+  setCloudStatus('Connecting…', 'connecting');
+  const ref = doc(cloudDb, 'users', uid);
+  cloudUnsub = onSnapshot(ref, (snap) => {
+    if (!snap.exists()) { setCloudStatus('Synced (waiting for data)', 'on'); return; }
+    const data = snap.data();
+    applyingRemote = true;
+    if (typeof SAMPLE_KEY !== 'undefined') localStorage.removeItem(SAMPLE_KEY);
+    if (Array.isArray(data.entries)) {
+      entries = data.entries;
+      if (typeof normalizeMilestones === 'function') entries.forEach(normalizeMilestones);
+      if (typeof ensureHistory === 'function') entries.forEach(ensureHistory);
+      if (typeof checkGhosting === 'function') checkGhosting();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    }
+    if (typeof data.goal === 'string') {
+      localStorage.setItem(GOAL_KEY, data.goal);
+      const gi = document.getElementById('goal-input');
+      if (gi) gi.value = data.goal;
+    }
+    if (typeof render === 'function') render();
+    applyingRemote = false;
+    setCloudStatus('Synced ✓', 'on');
+  }, (err) => {
+    console.error('[CloudSync] snapshot error:', err);
+    setCloudStatus('Sync error', 'error');
+  });
 }
 
 window.pushToCloud = function () {
-  const cfg = getCloudConfig();
-  if (!cfg || !cloudDb || applyingRemote) return;
+  if (!currentUser || !cloudDb || applyingRemote) return;
   clearTimeout(pushDebounce);
   pushDebounce = setTimeout(async () => {
     try {
       setCloudStatus('Syncing…', 'connecting');
-      await setDoc(doc(cloudDb, 'trackers', cfg.syncKey), {
+      await setDoc(doc(cloudDb, 'users', currentUser.uid), {
         entries: entries,
         goal: document.getElementById('goal-input')?.value || '',
         updatedAt: serverTimestamp()
@@ -4808,14 +4996,46 @@ window.pushToCloud = function () {
   }, 700);
 };
 
-window.openCloudModal = function () {
-  const cfg = getCloudConfig();
-  const configInput = document.getElementById('cloud-config-input');
-  const keyInput = document.getElementById('cloud-synckey-input');
-  if (cfg) {
-    configInput.value = JSON.stringify(cfg.firebaseConfig, null, 2);
-    keyInput.value = cfg.syncKey || '';
+function updateSignedInUI(user) {
+  document.getElementById('cloud-signed-out-view').style.display = 'none';
+  document.getElementById('cloud-signed-in-view').style.display = 'block';
+  document.getElementById('cloud-user-name').textContent = user.displayName || 'Signed in';
+  document.getElementById('cloud-user-email').textContent = user.email || '';
+  const photo = document.getElementById('cloud-user-photo');
+  if (user.photoURL) { photo.src = user.photoURL; photo.style.display = 'inline-block'; }
+  else { photo.style.display = 'none'; }
+}
+
+function updateSignedOutUI() {
+  document.getElementById('cloud-signed-out-view').style.display = 'block';
+  document.getElementById('cloud-signed-in-view').style.display = 'none';
+}
+
+window.handleGoogleSignIn = async function () {
+  initFirebase();
+  try {
+    setInlineMsg('Opening Google sign-in…', '');
+    const provider = new GoogleAuthProvider();
+    await signInWithPopup(auth, provider);
+    setInlineMsg('Signed in! Syncing…', 'ok');
+    if (entries && entries.length) window.pushToCloud();
+    setTimeout(closeCloudModal, 800);
+  } catch (e) {
+    console.error('[CloudSync] sign-in failed:', e);
+    setInlineMsg('Sign-in failed or was cancelled. Try again.', 'error');
   }
+};
+
+window.handleSignOut = async function () {
+  try {
+    await signOut(auth);
+    setCloudStatus('Not connected', 'off');
+  } catch (e) {
+    console.error('[CloudSync] sign-out failed:', e);
+  }
+};
+
+window.openCloudModal = function () {
   setInlineMsg('', '');
   document.getElementById('cloud-modal').classList.add('open');
 };
@@ -4828,71 +5048,8 @@ window.cloudModalBgClick = function (ev) {
   if (ev.target === document.getElementById('cloud-modal')) closeCloudModal();
 };
 
-window.copyCloudRules = function () {
-  const text = document.getElementById('cloud-rules-box').textContent;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(
-      () => setInlineMsg('Rules copied — paste into Firestore > Rules.', 'ok'),
-      () => setInlineMsg('Could not copy — select and copy manually.', 'error')
-    );
-  } else {
-    setInlineMsg('Clipboard unavailable — select and copy manually.', 'error');
-  }
-};
-
-// Fills the sync-key field with a long random UUID, since the Firestore rules
-// (allow read/write if syncKey.size() >= 20) treat key length/randomness as the
-// only real access control once this tracker is on a public URL — a guessable
-// key like a name+year is the weak point, not the hosting itself.
-window.generateSyncKey = function () {
-  const key = (crypto.randomUUID && crypto.randomUUID()) ||
-    Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
-  document.getElementById('cloud-synckey-input').value = key;
-  setInlineMsg('Random key generated — save it somewhere, you\'ll need it on other devices.', 'ok');
-};
-
-window.handleSaveCloudConfig = function () {
-  const raw = document.getElementById('cloud-config-input').value.trim();
-  const syncKey = document.getElementById('cloud-synckey-input').value.trim();
-  if (!raw || !syncKey) {
-    setInlineMsg('Please paste your Firebase config and choose a sync key.', 'error');
-    return;
-  }
-  if (syncKey.length < 20) {
-    setInlineMsg('For security, use a longer sync key (20+ random characters) — short keys are easy to guess and the rules snippet above requires it.', 'error');
-    return;
-  }
-  let firebaseConfig;
-  try {
-    // Accept both strict JSON and the unquoted-key object literal Firebase's console gives you
-    firebaseConfig = new Function('return (' + raw + ')')();
-    if (!firebaseConfig || !firebaseConfig.apiKey || !firebaseConfig.projectId) {
-      throw new Error('missing apiKey/projectId');
-    }
-  } catch (e) {
-    setInlineMsg('Could not parse that config — check it was pasted in full.', 'error');
-    return;
-  }
-  localStorage.setItem(CLOUD_KEY, JSON.stringify({ firebaseConfig, syncKey }));
-  setInlineMsg('Connected! Syncing now…', 'ok');
-  initCloud().then(() => {
-    if (window.pushToCloud && entries && entries.length) window.pushToCloud();
-  });
-  setTimeout(closeCloudModal, 900);
-};
-
-window.disconnectCloud = function () {
-  localStorage.removeItem(CLOUD_KEY);
-  if (cloudUnsub) { cloudUnsub(); cloudUnsub = null; }
-  cloudDb = null;
-  document.getElementById('cloud-config-input').value = '';
-  document.getElementById('cloud-synckey-input').value = '';
-  setInlineMsg('Disconnected.', 'ok');
-  setCloudStatus('Not connected', 'off');
-};
-
 document.addEventListener('DOMContentLoaded', () => {
-  setTimeout(initCloud, 200);
+  setTimeout(initFirebase, 200);
 });
 </script>
 </body>

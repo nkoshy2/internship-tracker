@@ -1979,7 +1979,7 @@ let editIdx = null; // set while the add-form is being used to edit an existing 
 // Bump this on every deployed change — shown in the header so it's obvious
 // (e.g. after a GitHub Pages push) whether the live site is running the
 // latest version or a stale cached copy.
-const APP_VERSION = 'v1.33';
+const APP_VERSION = 'v1.34';
 const APP_OWNER = 'Naveen Koshy';
 
 const STORAGE_KEY = 'intern_tracker_v2';
@@ -4986,6 +4986,16 @@ function setCloudStatus(text, cls) {
   el.className = 'cloud-status ' + (cls || '');
 }
 
+function firstName() {
+  const n = currentUser?.displayName;
+  return n ? n.trim().split(/\s+/)[0] : '';
+}
+
+function syncedLabel() {
+  const fn = firstName();
+  return fn ? ('Synced as ' + fn + ' ✓') : 'Synced ✓';
+}
+
 function setInlineMsg(text, cls) {
   const el = document.getElementById('cloud-inline-msg');
   if (!el) return;
@@ -5043,7 +5053,7 @@ function subscribeToUserDoc(uid) {
     }
     if (typeof render === 'function') render();
     applyingRemote = false;
-    setCloudStatus('Synced ✓', 'on');
+    setCloudStatus(syncedLabel(), 'on');
   }, (err) => {
     console.error('[CloudSync] snapshot error:', err);
     setCloudStatus('Sync error', 'error');
@@ -5064,7 +5074,7 @@ window.pushToCloud = function () {
         ownerEmail: currentUser.email || '',
         ownerName: currentUser.displayName || ''
       });
-      setCloudStatus('Synced ✓', 'on');
+      setCloudStatus(syncedLabel(), 'on');
     } catch (e) {
       console.error('[CloudSync] push failed:', e);
       setCloudStatus('Sync failed', 'error');
@@ -5137,34 +5147,14 @@ let ownEntriesBackup = null;
 let ownGoalBackup = null;
 
 window.openMasterDashboard = async function () {
-  initFirebase();
-  if (currentUser) {
-    if (await isMasterEmail(currentUser.email)) {
-      loadMasterDashboard();
-    } else {
-      setMasterMsg('Signed in as ' + currentUser.email + ' — this account isn\'t authorized for the dashboard.');
-    }
-    return;
-  }
-  try {
-    const provider = new GoogleAuthProvider();
-    const result = await signInWithPopup(auth, provider);
-    if (await isMasterEmail(result.user.email)) {
-      loadMasterDashboard();
-    } else {
-      setMasterMsg('Signed in as ' + result.user.email + ' — this account isn\'t authorized for the dashboard.');
-    }
-  } catch (e) {
-    console.error('[MasterDashboard] sign-in failed:', e);
-  }
+  // Deliberately silent for anyone who isn't already signed in as a master
+  // account — no popup, no message, nothing to click reveals this exists.
+  // This means a master account has to sign in via the normal cloud-sync
+  // flow first; clicking the name before that does nothing, on purpose.
+  if (!currentUser) return;
+  if (!(await isMasterEmail(currentUser.email))) return;
+  loadMasterDashboard();
 };
-
-function setMasterMsg(text) {
-  document.getElementById('master-dashboard-modal').classList.add('open');
-  document.getElementById('master-user-select').style.display = 'none';
-  document.getElementById('master-dashboard-body').innerHTML =
-    '<div style="padding:20px 0; color:var(--muted); font-size:13px;">' + text + '</div>';
-}
 
 async function loadMasterDashboard() {
   const modal = document.getElementById('master-dashboard-modal');

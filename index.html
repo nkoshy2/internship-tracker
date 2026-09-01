@@ -9,6 +9,10 @@
 <meta name="robots" content="noindex, nofollow, noarchive">
 <title>Internship Tracker</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<!-- SheetJS: only used client-side to parse .xlsx/.xls files dragged into the
+     Import Spreadsheet modal. Nothing is uploaded anywhere — parsing happens
+     entirely in the browser. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
     --bg: #F7F5F0;
@@ -34,15 +38,27 @@
     --spring-bg: #FCE7F1;
     --summer: #7A5C00;
     --summer-bg: #FFF6D9;
-    /* Individual interview-round colors (Sankey diagram). Distinct from the
-       generic --amber used for "Interview" elsewhere (badges, Kanban column,
-       and the Sankey's own fallback node for entries with no round logged)
-       so a reader can tell rounds apart at a glance, while an entry that's
-       just "somewhere in interviewing" with no round specified still reads
-       as the familiar amber. */
-    --stage-recruiter: #2B6E6E;
-    --stage-technical: #B8541A;
-    --stage-final: #6B2D5C;
+    /* Individual interview-round colors (Sankey diagram). Deliberately a
+       sequential ramp within the same amber family as the generic --amber
+       used for "Interview" elsewhere (badges, Kanban column, and the
+       Sankey's own fallback node for entries with no round logged) —
+       getting further into the interview process reads as "deeper into the
+       same amber," rather than three unrelated hues that don't visually
+       relate to each other or to "Interview" as a concept. Technical reuses
+       --amber exactly (the middle of the ramp) so the family reads as one
+       continuous progression: light -> familiar amber -> dark.
+       Previously: #2B6E6E (teal) / #B8541A (orange) / #6B2D5C (plum) — three
+       arbitrary hues with no relationship to each other or to "Interview". */
+    --stage-recruiter: #C0983C;
+    --stage-technical: #8B5E00;
+    --stage-final: #5C3D00;
+    /* "Still Active" in the Sankey (a synthetic status, never stored on an
+       entry — see renderSankey notes) previously reused --muted, whose warm
+       gray-brown reads as near-identical to --purple (Ghosted) once both are
+       drawn as translucent, overlapping ribbons. Sankey-only, so safe to
+       give it its own distinct cool slate-blue that can't be confused with
+       Ghosted's purple even under heavy ribbon overlap. */
+    --sankey-active: #4C6478;
     --radius: 10px;
     --radius-sm: 6px;
     --shadow: 0 1px 3px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.04);
@@ -342,6 +358,31 @@
     .controls-actions { justify-content: flex-start; }
     .controls-actions-right { margin-left: 0; }
   }
+
+  /* ADD-MENU POPOVER — Quick Capture / Bulk Paste / Import used to each get
+     their own button in the actions row; once there were three of them the
+     row wrapped onto two lines at normal widths. They're all just different
+     ways to get applications into the tracker, so they're grouped behind one
+     button now (same popover pattern as the Filters button below). */
+  .add-menu-wrap { position: relative; flex-shrink: 0; }
+  .add-menu-popover {
+    display: none;
+    position: absolute; top: calc(100% + 6px); right: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 6px; width: 220px; z-index: 90;
+    flex-direction: column; gap: 2px;
+  }
+  .add-menu-popover.open { display: flex; }
+  .add-menu-item {
+    display: flex; align-items: center; gap: 9px;
+    width: 100%; text-align: left; background: none; border: none;
+    padding: 9px 10px; border-radius: var(--radius-sm); cursor: pointer;
+    font-family: 'DM Sans', sans-serif; font-size: 13.5px; color: var(--text);
+  }
+  .add-menu-item:hover { background: var(--surface2); }
+  .add-menu-item .ami-icon { font-size: 15px; flex-shrink: 0; }
+  .add-menu-item .ami-text { display: flex; flex-direction: column; line-height: 1.25; }
+  .add-menu-item .ami-sub { font-size: 11px; color: var(--muted); }
 
   /* FILTERS POPOVER — priority/term/company/tag live here now; search + status
      stay inline since those are what people reach for most. */
@@ -999,6 +1040,65 @@
   .bulk-remove-btn:hover { opacity: 0.7; }
   .bulk-count-label { font-size: 13px; color: var(--muted); margin-top: 10px; }
 
+  /* IMPORT SPREADSHEET */
+  .modal-box.xwide { width: 760px; max-width: 96vw; }
+  .import-steps { display: flex; gap: 6px; margin-bottom: 14px; }
+  .import-step-dot {
+    flex: 1; height: 4px; border-radius: 2px; background: var(--border);
+  }
+  .import-step-dot.active { background: var(--accent-mid); }
+  .import-step-dot.done { background: var(--accent); }
+  .import-source-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+  .import-source-tab {
+    flex: 1; text-align: center; padding: 10px; border: 1px solid var(--border);
+    border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; font-weight: 500;
+    color: var(--muted); background: var(--surface2); transition: all 0.15s;
+  }
+  .import-source-tab.active { background: var(--accent-light); color: var(--accent); border-color: var(--accent-mid); }
+  .import-dropzone {
+    border: 2px dashed var(--border); border-radius: var(--radius);
+    padding: 28px 16px; text-align: center; cursor: pointer;
+    color: var(--muted); font-size: 13px; transition: all 0.15s;
+  }
+  .import-dropzone:hover, .import-dropzone.dragover { border-color: var(--accent-mid); background: var(--accent-light); color: var(--accent); }
+  .import-dropzone strong { display: block; font-size: 15px; color: var(--text); margin-bottom: 4px; }
+  .import-filename { font-size: 13px; color: var(--accent); margin-top: 10px; text-align: center; }
+  .import-hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .import-header-toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); margin-bottom: 12px; }
+  .import-header-toggle input { cursor: pointer; }
+  .import-map-table-wrap { max-height: 320px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .import-map-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  .import-map-table th, .import-map-table td {
+    padding: 6px 8px; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border);
+    text-align: left; white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis;
+  }
+  .import-map-table th:last-child, .import-map-table td:last-child { border-right: none; }
+  .import-map-table thead th { background: var(--surface2); position: sticky; top: 0; z-index: 1; }
+  .import-map-table select { width: 100%; font-size: 12px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); cursor: pointer; }
+  .import-map-table .sample-row td { color: var(--muted); font-style: italic; }
+  .import-preview-row {
+    display: grid; grid-template-columns: 110px 1fr 92px 78px 56px 108px 24px;
+    gap: 6px; align-items: center; padding: 6px 2px; border-bottom: 1px dashed var(--border);
+  }
+  .import-preview-row.needs-review { background: var(--amber-bg); border-radius: 6px; }
+  .import-preview-row.is-dup { background: var(--red-bg); border-radius: 6px; }
+  .import-preview-row input, .import-preview-row select {
+    padding: 6px 7px; font-size: 12px; border: 1px solid var(--border);
+    border-radius: 6px; font-family: 'DM Sans', sans-serif; color: var(--text);
+    background: var(--surface); outline: none; width: 100%; min-width: 0;
+  }
+  .import-preview-row input:focus, .import-preview-row select:focus { border-color: var(--accent-mid); }
+  .import-preview-flag { font-size: 11px; grid-column: 1 / -1; margin-top: -2px; padding: 0 2px 4px; }
+  .import-preview-flag.review { color: var(--amber); }
+  .import-preview-flag.dup { color: var(--red); }
+  .import-preview-head {
+    display: grid; grid-template-columns: 110px 1fr 92px 78px 56px 108px 24px;
+    gap: 6px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em;
+    color: var(--muted); padding: 0 2px 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px;
+  }
+  .import-summary-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 13px; color: var(--muted); }
+  .import-summary-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+
   /* SHORTCUTS OVERLAY */
   .shortcuts-overlay {
     position: fixed; inset: 0;
@@ -1303,6 +1403,7 @@
     <div class="first-run-actions">
       <button class="ctrl-btn primary" onclick="toggleForm()" title="Add internship (N)">+ Add your first internship</button>
       <button class="ctrl-btn" onclick="openBulkPaste()" title="Paste a list of companies/roles (B)">📋 Bulk paste a list</button>
+      <button class="ctrl-btn" onclick="openImportModal()" title="Import from a spreadsheet you're already using">📥 Import spreadsheet</button>
     </div>
     <div style="margin-top:10px;">
       <button class="ctrl-btn" onclick="loadSampleData()" title="Load a few fake entries to explore the app, then clear them anytime" style="font-size:13px; opacity:0.8;">👀 Not ready to add real data? Try it with sample data</button>
@@ -1496,7 +1597,19 @@
           👻 Ghost after <input type="number" id="ghost-days" min="7" max="365" value="30" onchange="onGhostDaysChange()">d
         </span>
         <button class="ctrl-btn" onclick="openCaptureModal()" title="Get a bookmarklet to log a posting from any job page in one click">🔖 Quick Capture</button>
-        <button class="ctrl-btn" onclick="openBulkPaste()" title="Paste a list of companies/roles (B)">📋 Bulk Paste</button>
+        <div class="add-menu-wrap">
+          <button class="ctrl-btn" onclick="toggleAddMenu(event)" title="Other ways to add applications" aria-haspopup="true">📋 Add from… ▾</button>
+          <div class="add-menu-popover" id="add-menu-popover">
+            <button class="add-menu-item" onclick="closeAddMenu(); openBulkPaste();">
+              <span class="ami-icon">📋</span>
+              <span class="ami-text">Bulk Paste <span class="ami-sub">Paste a list of companies/roles (B)</span></span>
+            </button>
+            <button class="add-menu-item" onclick="closeAddMenu(); openImportModal();">
+              <span class="ami-icon">📥</span>
+              <span class="ami-text">Import Spreadsheet <span class="ami-sub">From Excel, Sheets, or CSV (I)</span></span>
+            </button>
+          </div>
+        </div>
         <button class="ctrl-btn icon-btn" onclick="showShortcuts()" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts (?)">⌨ Shortcuts</button>
         <button class="ctrl-btn primary" onclick="toggleForm()" title="Add internship (N)">+ Add</button>
       </div>
@@ -1879,6 +1992,76 @@ Spring 2027 Engineering Intern - Undergraduate"></textarea>
   </div>
 </div>
 
+<!-- IMPORT SPREADSHEET MODAL -->
+<div class="modal-overlay" id="import-modal" onclick="importModalBgClick(event)">
+  <div class="modal-box xwide">
+    <div class="modal-title">
+      Import Spreadsheet
+      <em>Bring in applications you're already tracking elsewhere</em>
+    </div>
+
+    <div class="import-steps">
+      <div class="import-step-dot" id="import-dot-1"></div>
+      <div class="import-step-dot" id="import-dot-2"></div>
+      <div class="import-step-dot" id="import-dot-3"></div>
+    </div>
+
+    <!-- STEP 1: SOURCE -->
+    <div id="import-step-source">
+      <div class="import-source-tabs">
+        <div class="import-source-tab" id="import-tab-paste" onclick="setImportSourceTab('paste')">📋 Paste from Excel/Sheets</div>
+        <div class="import-source-tab" id="import-tab-file" onclick="setImportSourceTab('file')">📁 Upload a file</div>
+      </div>
+
+      <div id="import-paste-panel">
+        <div class="modal-field">
+          <label>Paste your data (select the cells in your sheet, copy, then paste here)</label>
+          <textarea class="bulk-textarea" id="import-paste-input" placeholder="Company&#9;Role&#9;Status&#9;Deadline
+Varda&#9;Mechanical Engineering Intern&#9;Applied&#9;3/1/2027
+Rocket Lab&#9;Supply Chain Intern&#9;Interview&#9;2/15/2027"></textarea>
+        </div>
+        <div class="import-hint">Paste a full range of cells (including the header row, if you have one) — tab or comma separated both work.</div>
+      </div>
+
+      <div id="import-file-panel" style="display:none;">
+        <div class="import-dropzone" id="import-dropzone" onclick="document.getElementById('import-file-input').click()"
+             ondragover="importDragOver(event)" ondragleave="importDragLeave(event)" ondrop="importFileDrop(event)">
+          <strong>Click to choose a file, or drag it here</strong>
+          .csv, .xlsx, or .xls — parsed entirely in your browser, never uploaded anywhere
+        </div>
+        <input type="file" id="import-file-input" accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none" onchange="importFileChange(event)" />
+        <div class="import-filename" id="import-filename" style="display:none;"></div>
+      </div>
+    </div>
+
+    <!-- STEP 2: COLUMN MAPPING -->
+    <div id="import-step-mapping" style="display:none;">
+      <label class="import-header-toggle">
+        <input type="checkbox" id="import-has-header" checked onchange="onImportHeaderToggle()">
+        First row is a header (not data)
+      </label>
+      <div class="import-map-table-wrap">
+        <table class="import-map-table" id="import-map-table"></table>
+      </div>
+      <div class="import-hint" id="import-map-hint" style="margin-top:10px;">Match each column to a field. Columns set to "Ignore" won't be imported.</div>
+    </div>
+
+    <!-- STEP 3: PREVIEW -->
+    <div id="import-step-preview" style="display:none;">
+      <div class="import-preview-head">
+        <div>Company</div><div>Role</div><div>Status</div><div>Term</div><div>Year</div><div>Deadline</div><div></div>
+      </div>
+      <div class="bulk-preview-wrap" id="import-preview-wrap" style="margin-top:0; padding-top:0; border-top:none;"></div>
+      <div class="import-summary-row">
+        <span id="import-count-label"></span>
+        <label><input type="checkbox" id="import-skip-dups" checked> Skip rows that look like duplicates</label>
+      </div>
+    </div>
+
+    <div class="modal-actions" id="import-actions"></div>
+  </div>
+</div>
+
 <!-- SHORTCUTS OVERLAY -->
 <!-- WELCOME TOUR — shown once per browser on first visit -->
 <div class="shortcuts-overlay" id="welcome-overlay" onclick="closeWelcomeBg(event)">
@@ -1902,6 +2085,7 @@ Spring 2027 Engineering Intern - Undergraduate"></textarea>
     <div class="shortcut-row"><div><span class="shortcut-key">V</span></div><div class="shortcut-desc">Cycle Table → Board → Flow view</div></div>
     <div class="shortcut-row"><div><span class="shortcut-key">F</span></div><div class="shortcut-desc">Focus search bar</div></div>
     <div class="shortcut-row"><div><span class="shortcut-key">B</span></div><div class="shortcut-desc">Open bulk paste</div></div>
+    <div class="shortcut-row"><div><span class="shortcut-key">I</span></div><div class="shortcut-desc">Import from a spreadsheet</div></div>
     <div class="shortcut-row"><div><span class="shortcut-key">A</span></div><div class="shortcut-desc">Select / deselect all rows</div></div>
     <div class="shortcut-row"><div><span class="shortcut-key">D</span></div><div class="shortcut-desc">Set deadline for selected rows</div></div>
     <div class="shortcut-row"><div><span class="shortcut-key">⌫</span></div><div class="shortcut-desc">Delete selected rows</div></div>
@@ -1979,7 +2163,7 @@ let editIdx = null; // set while the add-form is being used to edit an existing 
 // Bump this on every deployed change — shown in the header so it's obvious
 // (e.g. after a GitHub Pages push) whether the live site is running the
 // latest version or a stale cached copy.
-const APP_VERSION = 'v1.35';
+const APP_VERSION = 'v1.38';
 const APP_OWNER = 'Naveen Koshy';
 
 const STORAGE_KEY = 'intern_tracker_v2';
@@ -3183,7 +3367,17 @@ function closeFiltersPopover() {
 document.addEventListener('click', (ev) => {
   const wrap = document.querySelector('.filters-popover-wrap');
   if (wrap && !wrap.contains(ev.target)) closeFiltersPopover();
+  const addWrap = document.querySelector('.add-menu-wrap');
+  if (addWrap && !addWrap.contains(ev.target)) closeAddMenu();
 });
+function toggleAddMenu(ev) {
+  if (ev) ev.stopPropagation();
+  document.getElementById('add-menu-popover').classList.toggle('open');
+}
+function closeAddMenu() {
+  const pop = document.getElementById('add-menu-popover');
+  if (pop) pop.classList.remove('open');
+}
 function clearExtraFilters() {
   ['filter-priority', 'filter-term', 'filter-company', 'filter-tag'].forEach(id => {
     const el = document.getElementById(id);
@@ -3396,7 +3590,7 @@ const SANKEY_COLOR = {
   interview_oa: 'var(--stage-recruiter)',
   interview_phone: 'var(--stage-technical)',
   interview_onsite: 'var(--stage-final)',
-  ghosted: 'var(--purple)', offer: 'var(--accent)', rejected: 'var(--red)', active: 'var(--muted)',
+  ghosted: 'var(--purple)', offer: 'var(--accent)', rejected: 'var(--red)', active: 'var(--sankey-active)',
 };
 function sankeyLabel(status) {
   if (status === 'interview_unspecified') return 'Interview';
@@ -3589,13 +3783,18 @@ function renderSankey() {
     // Ribbons into "Still Active" are dashed and faded relative to real
     // outcomes (Rejected/Offer/Ghosted) - this hasn't resolved yet, so it
     // shouldn't visually read as one of the settled results.
-    const fillOpacity = isActive ? '0.14' : '0.30';
-    const strokeOpacity = isActive ? '0.5' : '0.55';
+    // Fill opacity is kept fairly low so 2-3 overlapping ribbons in a
+    // crossing zone don't stack into a muddy, unreadable blob - but a
+    // visible, higher-opacity stroke means each ribbon still has a crisp
+    // traceable edge even where fills overlap, so you can follow a single
+    // flow through a crossing by its outline when the fill blend gets busy.
+    const fillOpacity = isActive ? '0.12' : '0.22';
+    const strokeOpacity = isActive ? '0.55' : '0.8';
     const dashAttr = isActive ? ' stroke-dasharray="4,3"' : '';
     const title = isActive
       ? `${esc(sourceLabel)} \u2192 Still open: ${value} opportunit${value === 1 ? 'y' : 'ies'} awaiting a response`
       : `${esc(sourceLabel)} \u2192 ${esc(targetLabel)}: ${value} opportunit${value === 1 ? 'y' : 'ies'}`;
-    linksSvg += `<path class="sankey-link" d="${d}" fill="${color}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-opacity="${strokeOpacity}" stroke-width="0.5"${dashAttr}>`
+    linksSvg += `<path class="sankey-link" d="${d}" fill="${color}" fill-opacity="${fillOpacity}" stroke="${color}" stroke-opacity="${strokeOpacity}" stroke-width="1"${dashAttr}>`
               + `<title>${esc(title)}</title></path>`;
   });
 
@@ -4562,6 +4761,477 @@ function commitBulkAdd() {
   if (validRows.length >= 3) confetti();
 }
 
+// ─── Import spreadsheet ─────────────────────────────────────────────────────
+// Lets someone bring in whatever they were already using (an Excel/Sheets
+// export, or a raw copy-paste of cells) instead of re-typing everything.
+// Three steps, all client-side — nothing is ever uploaded anywhere:
+//   1. source   — paste tabular text, or pick a .csv/.xlsx/.xls file
+//   2. mapping  — match each of THEIR columns to one of OUR fields, since no
+//                 two people's trackers use the same headers
+//   3. preview  — editable rows (reusing the Bulk Paste preview pattern),
+//                 with likely-duplicate and needs-review flags before commit
+
+const IMPORT_FIELDS = [
+  { key: 'ignore', label: '— Ignore —' },
+  { key: 'company', label: 'Company' },
+  { key: 'role', label: 'Role' },
+  { key: 'status', label: 'Status' },
+  { key: 'priority', label: 'Priority' },
+  { key: 'term', label: 'Term' },
+  { key: 'termYear', label: 'Term Year' },
+  { key: 'deadline', label: 'Deadline' },
+  { key: 'dateApplied', label: 'Date Applied' },
+  { key: 'link', label: 'Link' },
+  { key: 'notes', label: 'Notes' },
+  { key: 'referralName', label: 'Referral Name' },
+];
+
+// Checked in this order (most specific first) so e.g. "Term Year" doesn't
+// get shadowed by the plainer "Term" or "Year" keyword sets.
+const IMPORT_HEADER_MATCH_ORDER = [
+  { key: 'dateApplied', words: ['date applied', 'applied date', 'application date', 'date submitted'] },
+  { key: 'termYear', words: ['term year', 'grad year'] },
+  { key: 'deadline', words: ['deadline', 'due date', 'due', 'apply by'] },
+  { key: 'referralName', words: ['referral', 'referred by', 'reference'] },
+  { key: 'company', words: ['company', 'employer', 'organization', 'org'] },
+  { key: 'role', words: ['role', 'position', 'job title', 'title', 'job'] },
+  { key: 'status', words: ['status', 'stage', 'state'] },
+  { key: 'priority', words: ['priority'] },
+  { key: 'link', words: ['link', 'url', 'posting', 'job link'] },
+  { key: 'notes', words: ['notes', 'note', 'comment'] },
+  { key: 'term', words: ['term', 'season'] },
+  { key: 'year', words: ['year'], mapTo: 'termYear' }, // bare "Year" -> termYear
+  { key: 'date', words: ['date'], mapTo: 'dateApplied' }, // bare "Date" -> dateApplied
+];
+
+const IMPORT_STATUS_MATCH_ORDER = [
+  { key: 'rejected', words: ['reject', 'declin', 'denied', 'turned down', 'not moving forward'] },
+  { key: 'offer', words: ['offer', 'accepted'] },
+  { key: 'ghosted', words: ['ghost', 'no response', 'no reply', 'radio silence'] },
+  { key: 'interview', words: ['interview', 'phone screen', 'onsite', 'technical', 'online assessment', ' oa ', 'recruiter call', 'screen'] },
+  { key: 'active', words: ['still active'] },
+  { key: 'plan', words: ['plan', 'wishlist', 'interested', 'considering', 'to apply', 'not yet', 'saved', 'watch'] },
+  { key: 'applied', words: ['applied', 'submitted', 'application sent', 'in review', 'under review', 'pending', 'sent'] },
+];
+
+let importState = {
+  step: 1,
+  sourceTab: 'paste',
+  rawRows: [],       // array of arrays, every parsed row incl. header if present
+  hasHeader: true,
+  mapping: [],        // field key per column index
+  previewRows: [],    // final editable row objects
+};
+
+function openImportModal() {
+  importState = { step: 1, sourceTab: 'paste', rawRows: [], hasHeader: true, mapping: [], previewRows: [] };
+  document.getElementById('import-paste-input').value = '';
+  document.getElementById('import-file-input').value = '';
+  document.getElementById('import-filename').style.display = 'none';
+  setImportSourceTab('paste');
+  renderImportStep();
+  document.getElementById('import-modal').classList.add('open');
+}
+function closeImportModal() {
+  document.getElementById('import-modal').classList.remove('open');
+}
+function importModalBgClick(ev) {
+  if (ev.target === document.getElementById('import-modal')) closeImportModal();
+}
+
+function setImportSourceTab(tab) {
+  importState.sourceTab = tab;
+  document.getElementById('import-tab-paste').classList.toggle('active', tab === 'paste');
+  document.getElementById('import-tab-file').classList.toggle('active', tab === 'file');
+  document.getElementById('import-paste-panel').style.display = tab === 'paste' ? '' : 'none';
+  document.getElementById('import-file-panel').style.display = tab === 'file' ? '' : 'none';
+}
+
+// ── Delimited-text parsing (handles quoted fields with embedded commas/tabs,
+//    which real-world CSV/Excel exports use constantly) ────────────────────
+function parseDelimitedText(text, delimiter) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  const s = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (s[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === delimiter) {
+      row.push(field); field = '';
+    } else if (c === '\n') {
+      row.push(field); field = '';
+      rows.push(row); row = [];
+    } else {
+      field += c;
+    }
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => c.trim() !== ''));
+}
+
+// Guesses whether pasted text is tab- or comma-delimited by checking that
+// most non-empty lines share the same delimiter count.
+function detectDelimiter(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim() !== '').slice(0, 20);
+  if (!lines.length) return null;
+  const tabCounts = lines.map(l => (l.match(/\t/g) || []).length);
+  const commaCounts = lines.map(l => (l.match(/,/g) || []).length);
+  const consistent = (counts) => counts[0] > 0 && counts.every(c => c === counts[0]);
+  if (consistent(tabCounts)) return '\t';
+  if (consistent(commaCounts)) return ',';
+  // Fall back to whichever delimiter appears most, even if inconsistent —
+  // still better than treating the whole paste as one giant column.
+  const totalTabs = tabCounts.reduce((a, b) => a + b, 0);
+  const totalCommas = commaCounts.reduce((a, b) => a + b, 0);
+  if (totalTabs === 0 && totalCommas === 0) return null;
+  return totalTabs >= totalCommas ? '\t' : ',';
+}
+
+function onImportPasteChange() {
+  // no-op hook kept for symmetry / future live-preview; parsing happens on Next
+}
+
+// ── File handling ───────────────────────────────────────────────────────────
+function importDragOver(ev) { ev.preventDefault(); document.getElementById('import-dropzone').classList.add('dragover'); }
+function importDragLeave(ev) { document.getElementById('import-dropzone').classList.remove('dragover'); }
+function importFileDrop(ev) {
+  ev.preventDefault();
+  document.getElementById('import-dropzone').classList.remove('dragover');
+  if (ev.dataTransfer.files && ev.dataTransfer.files[0]) readImportFile(ev.dataTransfer.files[0]);
+}
+function importFileChange(ev) {
+  if (ev.target.files && ev.target.files[0]) readImportFile(ev.target.files[0]);
+}
+function readImportFile(file) {
+  const name = file.name || '';
+  const isCsv = /\.csv$/i.test(name) || file.type === 'text/csv';
+  const fnEl = document.getElementById('import-filename');
+  fnEl.textContent = '📄 ' + name;
+  fnEl.style.display = '';
+  importState.pendingFileRows = null;
+  const reader = new FileReader();
+  if (isCsv) {
+    reader.onload = (e) => {
+      importState.pendingFileRows = parseDelimitedText(String(e.target.result), detectDelimiter(String(e.target.result)) || ',');
+    };
+    reader.readAsText(file);
+  } else {
+    reader.onload = (e) => {
+      try {
+        if (typeof XLSX === 'undefined') {
+          showToast('Spreadsheet parser failed to load — try CSV instead, or check your connection');
+          return;
+        }
+        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' })
+          .map(r => r.map(c => String(c == null ? '' : c)))
+          .filter(r => r.some(c => c.trim() !== ''));
+        importState.pendingFileRows = rows;
+      } catch (err) {
+        showToast('Could not read that file — is it a valid .xlsx/.xls?');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+// ── Step navigation ─────────────────────────────────────────────────────────
+function renderImportStep() {
+  ['import-dot-1', 'import-dot-2', 'import-dot-3'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    el.classList.toggle('active', importState.step === i + 1);
+    el.classList.toggle('done', importState.step > i + 1);
+  });
+  document.getElementById('import-step-source').style.display = importState.step === 1 ? '' : 'none';
+  document.getElementById('import-step-mapping').style.display = importState.step === 2 ? '' : 'none';
+  document.getElementById('import-step-preview').style.display = importState.step === 3 ? '' : 'none';
+
+  const actions = document.getElementById('import-actions');
+  if (importState.step === 1) {
+    actions.innerHTML = `
+      <button class="ctrl-btn" onclick="closeImportModal()">Cancel</button>
+      <button class="ctrl-btn primary" onclick="importGoToMapping()">Next: Match columns</button>`;
+  } else if (importState.step === 2) {
+    actions.innerHTML = `
+      <button class="ctrl-btn" onclick="importState.step=1; renderImportStep();">Back</button>
+      <button class="ctrl-btn primary" onclick="importGoToPreview()">Next: Preview</button>`;
+  } else {
+    actions.innerHTML = `
+      <button class="ctrl-btn" onclick="importState.step=2; renderImportStep();">Back</button>
+      <button class="ctrl-btn primary" id="import-commit-btn" onclick="commitImport()">Import all</button>`;
+  }
+}
+
+function importGoToMapping() {
+  let rows;
+  if (importState.sourceTab === 'file') {
+    if (!importState.pendingFileRows || !importState.pendingFileRows.length) {
+      showToast('Choose a file first'); return;
+    }
+    rows = importState.pendingFileRows;
+  } else {
+    const text = document.getElementById('import-paste-input').value;
+    if (!text.trim()) { showToast('Paste some data first'); return; }
+    const delim = detectDelimiter(text);
+    if (!delim) { showToast("That doesn't look like a table — try copying more than one column"); return; }
+    rows = parseDelimitedText(text, delim);
+  }
+  if (!rows.length) { showToast('No rows found in that data'); return; }
+  // Normalize row lengths so every row has the same column count.
+  const width = Math.max(...rows.map(r => r.length));
+  rows = rows.map(r => { const copy = r.slice(); while (copy.length < width) copy.push(''); return copy; });
+
+  importState.rawRows = rows;
+  importState.hasHeader = guessHasHeader(rows);
+  importState.mapping = guessColumnMapping(rows[0], importState.hasHeader);
+  document.getElementById('import-has-header').checked = importState.hasHeader;
+  renderImportMappingTable();
+  importState.step = 2;
+  renderImportStep();
+}
+
+// A row "looks like" a header if at least two of its cells match one of our
+// known field keywords — actual data rows (company names, dates, etc.)
+// essentially never do.
+function guessHasHeader(rows) {
+  const header = rows[0];
+  let matches = 0;
+  header.forEach(cell => { if (matchHeaderCell(cell).key !== 'ignore') matches++; });
+  return matches >= 2;
+}
+
+function matchHeaderCell(cell) {
+  const t = (' ' + String(cell || '').toLowerCase().trim() + ' ');
+  for (const entry of IMPORT_HEADER_MATCH_ORDER) {
+    for (const w of entry.words) {
+      if (t.includes(' ' + w + ' ') || t.trim() === w) {
+        return { key: entry.mapTo || entry.key };
+      }
+    }
+  }
+  return { key: 'ignore' };
+}
+
+function guessColumnMapping(headerRow, hasHeader) {
+  const used = new Set();
+  if (!hasHeader) {
+    // No header to read — fall back to the two columns almost every sheet
+    // leads with; everything else starts unmapped for the user to assign.
+    return headerRow.map((_, i) => (i === 0 ? 'company' : i === 1 ? 'role' : 'ignore'));
+  }
+  return headerRow.map(cell => {
+    const guess = matchHeaderCell(cell).key;
+    if (guess !== 'ignore' && !used.has(guess)) { used.add(guess); return guess; }
+    return 'ignore';
+  });
+}
+
+function onImportHeaderToggle() {
+  importState.hasHeader = document.getElementById('import-has-header').checked;
+  // Re-guess mapping from scratch against the (now differently-interpreted) header row.
+  importState.mapping = guessColumnMapping(importState.rawRows[0], importState.hasHeader);
+  renderImportMappingTable();
+}
+
+function renderImportMappingTable() {
+  const rows = importState.rawRows;
+  if (!rows.length) return;
+  const headerRow = rows[0];
+  const sampleRows = (importState.hasHeader ? rows.slice(1) : rows).slice(0, 3);
+  const table = document.getElementById('import-map-table');
+
+  const fieldOptions = (colIdx) => IMPORT_FIELDS.map(f =>
+    `<option value="${f.key}" ${importState.mapping[colIdx] === f.key ? 'selected' : ''}>${f.label}</option>`
+  ).join('');
+
+  let html = '<thead><tr>' + headerRow.map((cell, i) => `
+    <th>
+      <select onchange="updateImportMapping(${i}, this.value)">${fieldOptions(i)}</select>
+    </th>`).join('') + '</tr></thead><tbody>';
+
+  if (importState.hasHeader) {
+    html += `<tr class="sample-row">${headerRow.map(c => `<td>"${esc(c)}"</td>`).join('')}</tr>`;
+  }
+  sampleRows.forEach(r => {
+    html += `<tr class="sample-row">${r.map(c => `<td>${esc(c) || '<span style="opacity:.4">—</span>'}</td>`).join('')}</tr>`;
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+}
+
+function updateImportMapping(colIdx, val) {
+  importState.mapping[colIdx] = val;
+}
+
+// ── Value normalization ─────────────────────────────────────────────────────
+function normalizeImportStatus(text) {
+  const t = ' ' + String(text || '').toLowerCase().trim() + ' ';
+  if (!t.trim()) return { status: 'applied', needsReview: true };
+  for (const entry of IMPORT_STATUS_MATCH_ORDER) {
+    for (const w of entry.words) {
+      if (t.includes(w)) return { status: entry.key, needsReview: false };
+    }
+  }
+  return { status: 'applied', needsReview: true };
+}
+
+function normalizeImportTerm(text) {
+  const t = String(text || '').toLowerCase();
+  const m = t.match(/\b(fall|autumn|spring|summer)\b/);
+  if (!m) return '';
+  return m[1] === 'autumn' ? 'fall' : m[1];
+}
+
+function normalizeImportYear(text) {
+  const m = String(text || '').match(/\b(20[2-3]\d)\b/);
+  return m ? m[1] : String(text || '').trim();
+}
+
+// Parses whatever date-ish text a sheet exported (MM/DD/YYYY, "Jan 5 2026",
+// ISO, etc.) into the YYYY-MM-DD format the date <input> and internal
+// timestamps expect. Returns '' if it can't make sense of it, rather than
+// guessing and silently mis-dating history.
+function normalizeImportDate(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return { iso: '', ts: null };
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return { iso: '', ts: null };
+  const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  return { iso, ts: d.getTime() };
+}
+
+function importGoToPreview() {
+  const rows = importState.rawRows;
+  const dataRows = importState.hasHeader ? rows.slice(1) : rows;
+  const mapping = importState.mapping;
+
+  if (!mapping.includes('company')) {
+    showToast('Map at least one column to "Company" before continuing');
+    return;
+  }
+
+  const previewRows = dataRows.map(r => {
+    const get = (field) => {
+      const idx = mapping.indexOf(field);
+      return idx === -1 ? '' : (r[idx] || '').trim();
+    };
+    const statusRaw = get('status');
+    const { status, needsReview } = normalizeImportStatus(statusRaw);
+    const dateApplied = normalizeImportDate(get('dateApplied'));
+    const deadline = normalizeImportDate(get('deadline'));
+
+    return {
+      company: get('company'),
+      role: get('role'),
+      status,
+      needsReview,
+      priority: (get('priority').toLowerCase().startsWith('h') ? 'high' : get('priority').toLowerCase().startsWith('l') ? 'low' : 'med'),
+      term: normalizeImportTerm(get('term')),
+      termYear: normalizeImportYear(get('termYear')),
+      deadline: deadline.iso,
+      link: get('link'),
+      notes: get('notes'),
+      referralName: get('referralName'),
+      appliedTs: dateApplied.ts,
+    };
+  }).filter(r => r.company);
+
+  // Flag anything that already looks like it's in the tracker, so it's easy
+  // to spot in the preview and drop before committing (avoids re-import dupes).
+  previewRows.forEach(r => {
+    r.isDup = findDuplicateEntry(r.company, r.role, null) !== -1;
+  });
+
+  if (!previewRows.length) {
+    showToast('No rows with a company name found — check your column mapping');
+    return;
+  }
+
+  importState.previewRows = previewRows;
+  renderImportPreview();
+  importState.step = 3;
+  renderImportStep();
+}
+
+function renderImportPreview() {
+  const wrap = document.getElementById('import-preview-wrap');
+  const rows = importState.previewRows;
+  wrap.innerHTML = rows.map((r, i) => `
+    <div class="import-preview-row ${r.needsReview ? 'needs-review' : ''} ${r.isDup ? 'is-dup' : ''}">
+      <input type="text" value="${esc(r.company)}" oninput="updateImportRow(${i},'company',this.value)" placeholder="Company">
+      <input type="text" value="${esc(r.role)}" oninput="updateImportRow(${i},'role',this.value)" placeholder="Role">
+      <select onchange="updateImportRow(${i},'status',this.value)">
+        ${Object.keys(statusLabel).map(s => `<option value="${s}" ${r.status === s ? 'selected' : ''}>${statusLabel[s]}</option>`).join('')}
+      </select>
+      <select onchange="updateImportRow(${i},'term',this.value)">
+        <option value="" ${!r.term ? 'selected' : ''}>—</option>
+        <option value="fall" ${r.term === 'fall' ? 'selected' : ''}>🍂 Fall</option>
+        <option value="spring" ${r.term === 'spring' ? 'selected' : ''}>🌸 Spring</option>
+        <option value="summer" ${r.term === 'summer' ? 'selected' : ''}>☀️ Summer</option>
+      </select>
+      <input type="number" value="${esc(r.termYear)}" oninput="updateImportRow(${i},'termYear',this.value)" placeholder="Yr">
+      <input type="date" value="${esc(r.deadline)}" oninput="updateImportRow(${i},'deadline',this.value)">
+      <button class="bulk-remove-btn" onclick="removeImportRow(${i})" title="Remove this row">✕</button>
+      ${r.needsReview ? `<div class="import-preview-flag review">⚠ Couldn't confidently match a status — check this one</div>` : ''}
+      ${r.isDup ? `<div class="import-preview-flag dup">⚠ Looks like you're already tracking this — remove it if it's a duplicate</div>` : ''}
+    </div>
+  `).join('');
+  const n = rows.length;
+  document.getElementById('import-count-label').textContent = n + ' entr' + (n === 1 ? 'y' : 'ies') + ' ready to import';
+}
+
+function updateImportRow(i, key, val) {
+  if (!importState.previewRows[i]) return;
+  importState.previewRows[i][key] = val;
+  if (key === 'status') importState.previewRows[i].needsReview = false;
+}
+
+function removeImportRow(i) {
+  importState.previewRows.splice(i, 1);
+  renderImportPreview();
+}
+
+function commitImport() {
+  const skipDups = document.getElementById('import-skip-dups').checked;
+  let rows = importState.previewRows.filter(r => r.company && r.company.trim());
+  if (skipDups) rows = rows.filter(r => !r.isDup);
+  if (!rows.length) { showToast('Nothing to import'); return; }
+
+  rows.forEach(r => {
+    const entry = {
+      company: r.company.trim(),
+      role: (r.role || '').trim(),
+      status: r.status,
+      priority: r.priority,
+      term: r.term || '',
+      termYear: r.termYear ? String(r.termYear).trim() : '',
+      link: (r.link || '').trim(),
+      deadline: r.deadline || '',
+      notes: (r.notes || '').trim(),
+      referralName: (r.referralName || '').trim(),
+      added: r.appliedTs || Date.now(),
+    };
+    // Backdate the status history to the real application date when we have
+    // one, so the trend/heatmap charts (which key off history[].at) reflect
+    // when things actually happened instead of bunching everything on
+    // "today" just because that's when the import ran.
+    entry.history = [{ status: entry.status, at: r.appliedTs || Date.now() }];
+    normalizeMilestones(entry);
+    entries.unshift(entry);
+  });
+  save(); render();
+  closeImportModal();
+  showToast('Imported ' + rows.length + ' internship' + (rows.length === 1 ? '' : 's') + '!');
+  if (rows.length >= 3) confetti();
+}
+
 // ─── Shortcuts ────────────────────────────────────────────────────────────────
 function showShortcuts() {
   document.getElementById('shortcuts-overlay').classList.add('open');
@@ -4649,9 +5319,11 @@ document.addEventListener('keydown', (ev) => {
     document.getElementById('add-form').classList.remove('open');
     document.getElementById('bulk-modal').classList.remove('open');
     document.getElementById('bulk-deadline-modal').classList.remove('open');
+    document.getElementById('import-modal').classList.remove('open');
     document.getElementById('shortcuts-overlay').classList.remove('open');
     if (document.getElementById('welcome-overlay').classList.contains('open')) closeWelcomeTour();
     closeFiltersPopover();
+    closeAddMenu();
     clearSelection();
     return;
   }
@@ -4676,6 +5348,10 @@ document.addEventListener('keydown', (ev) => {
     ev.preventDefault();
     document.getElementById('shortcuts-overlay').classList.remove('open');
     openBulkPaste();
+  } else if (ev.key === 'i' || ev.key === 'I') {
+    ev.preventDefault();
+    document.getElementById('shortcuts-overlay').classList.remove('open');
+    openImportModal();
   } else if (ev.key === 'a' || ev.key === 'A') {
     ev.preventDefault();
     const allChecked = document.getElementById('check-all').checked;
